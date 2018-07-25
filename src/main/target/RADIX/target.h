@@ -103,7 +103,7 @@
 #define BARO_SPI_INSTANCE    SPI3
 #define BARO_CS_PIN          PB8
 
-#define USABLE_TIMER_CHANNEL_COUNT 8
+#define USABLE_TIMER_CHANNEL_COUNT 10
 
 #define USE_VCP
 #define VBUS_SENSING_PIN        PA9
@@ -120,16 +120,16 @@
 #define UART3_RX_PIN            PC5
 #define UART3_TX_PIN            PB10
 
-#define USE_UART4
-#define UART4_RX_PIN            PA1
-#define UART4_TX_PIN            PA0
+//#define USE_UART4
+//#define UART4_RX_PIN            PA1
+//#define UART4_TX_PIN            PA0
 
 #define USE_UART6
 #undef USE_UART6_TX_DMA
 #define UART6_RX_PIN            PC7
 #define UART6_TX_PIN            PC6
 
-#define SERIAL_PORT_COUNT       5 //VCP, USART1,  USART3, USART4, USART6
+#define SERIAL_PORT_COUNT       4 //VCP, USART1,  USART3, USART6
 
 #define USE_SPI
 

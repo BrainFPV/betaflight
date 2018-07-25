@@ -109,7 +109,9 @@ const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {
     DEF_TIM(TIM2,  CH1, PA15, TIM_USE_MOTOR, 0, 0), // S4
     DEF_TIM(TIM8,  CH3, PC8,  TIM_USE_MOTOR, 0, 0), // S5
     DEF_TIM(TIM3,  CH3, PB0,  TIM_USE_MOTOR, 0, 0), // S6
-    DEF_TIM(TIM11, CH1, PB9,  TIM_USE_CAMERA_CONTROL, 0, 0),   // Camera Control
+    DEF_TIM(TIM5,  CH1, PA0,  TIM_USE_MOTOR, 0, 0), // S7 - UART4 TX
+    DEF_TIM(TIM5,  CH2, PA1,  TIM_USE_MOTOR, 0, 0), // S8 - UART4 RX
+    DEF_TIM(TIM11, CH1, PB9,  TIM_USE_ANY,   0, 0), // Camera Control
 };
 
 
