@@ -1603,6 +1603,9 @@ SLOW_CONST const clivalue_t valueTable[] = {
 #endif
 
 #ifdef USE_BRAINFPV_OSD
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+    { "brainfpv_osd_sync_thresh_mode", VAR_UINT8  | MASTER_VALUE, .config.minmax = { 0, 1 }, PG_BRAINFPV_OSD_CONFIG, offsetof(bfOsdConfig_t, sync_threshold_mode) },
+#endif
     { "brainfpv_osd_sync_thresh",   VAR_UINT8  | MASTER_VALUE, .config.minmax = { BRAINFPV_OSD_SYNC_TH_MIN, BRAINFPV_OSD_SYNC_TH_MAX }, PG_BRAINFPV_OSD_CONFIG, offsetof(bfOsdConfig_t, sync_threshold) },
 #ifdef BRAINFPV_OSD_WHITE_LEVEL_MIN
     { "brainfpv_osd_white_level",   VAR_UINT8  | MASTER_VALUE, .config.minmax = { BRAINFPV_OSD_WHITE_LEVEL_MIN, BRAINFPV_OSD_WHITE_LEVEL_MAX }, PG_BRAINFPV_OSD_CONFIG, offsetof(bfOsdConfig_t, white_level) },

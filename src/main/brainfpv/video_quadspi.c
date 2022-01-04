@@ -42,6 +42,9 @@
 
 #include "drivers/rcc.h"
 
+#include "brainfpv/brainfpv_osd.h"
+#include "brainfpv/auto_sync_threshold.h"
+
 #if defined(INCLUDE_VIDEO_QUADSPI)
 
 #if defined(STM32F446xx)
@@ -147,6 +150,10 @@ uint8_t black_pal = 30;
 uint8_t white_pal = 110;
 uint8_t black_ntsc = 10;
 uint8_t white_ntsc = 110;
+
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+bool useAutoSyncThreshold = false;
+#endif
 
 // Private functions
 static void swap_buffers();
@@ -511,6 +518,14 @@ void Video_Init()
     // Enable interrupts
     EXTIEnable(vsync_io, true);
     EXTIEnable(hsync_io, true);
+
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+   if (bfOsdConfig()->sync_threshold_mode == SYNC_THRESHOLD_AUTO) {
+       if (autoSyncThresholdInit() == 0) {
+           useAutoSyncThreshold = true;
+       }
+   }
+#endif
 
     video_initialized = true;
 }

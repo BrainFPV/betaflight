@@ -453,6 +453,7 @@ SRC += brainfpv/brainfpv_system.c \
        brainfpv/video_quadspi.c \
        brainfpv/ir_transponder.c \
        brainfpv/brainfpv_rgb_led_timer.c \
+       brainfpv/auto_sync_threshold.c \
        io/displayport_max7456.c \
        cms/cms_menu_brainfpv.c
 ifeq ($(TARGET),$(filter $(TARGET),$(H750xB_TARGETS)))

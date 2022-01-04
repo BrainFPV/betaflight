@@ -99,6 +99,11 @@ OSD_UINT8_t entryWhiteLevel =  {&bfOsdConfigCms.white_level, BRAINFPV_OSD_WHITE_
 OSD_UINT8_t entryBlackLevel =  {&bfOsdConfigCms.black_level, BRAINFPV_OSD_BLACK_LEVEL_MIN, BRAINFPV_OSD_BLACK_LEVEL_MAX, 1};
 #endif
 
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+const char *SYNC_TH_MODE_NAMES[] = {"MANUAL", "AUTO"};
+OSD_TAB_t entrySyncThMode = {&bfOsdConfigCms.sync_threshold_mode, 2, &SYNC_TH_MODE_NAMES[0]};
+#endif
+
 OSD_UINT8_t entrySyncTh =  {&bfOsdConfigCms.sync_threshold, BRAINFPV_OSD_SYNC_TH_MIN, BRAINFPV_OSD_SYNC_TH_MAX, 1};
 OSD_INT8_t entryXoff =  {&bfOsdConfigCms.x_offset, -8, 7, 1};
 OSD_INT8_t entryXScale =  {&bfOsdConfigCms.x_scale_diff, -3, 3, 1};
@@ -120,6 +125,9 @@ OSD_Entry cmsx_menuBrainFPVOsdEntries[] =
     {"OSD BLACK", OME_UINT8, NULL, &entryBlackLevel, 0},
 #endif
     {"INVERT", OME_Bool, NULL, &bfOsdConfigCms.invert, 0},
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+    {"OSD SYNC TH MODE", OME_TAB, NULL, &entrySyncThMode, 0},
+#endif
     {"OSD SYNC TH", OME_UINT8, NULL, &entrySyncTh, 0},
     {"OSD X OFF", OME_INT8, NULL, &entryXoff, 0},
     {"OSD X SC", OME_INT8, NULL, &entryXScale, 0},

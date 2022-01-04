@@ -40,7 +40,9 @@
 #include <math.h>
 #include <stdbool.h>
 
-#include "brainfpv_osd.h"
+#include "brainfpv/brainfpv_osd.h"
+#include "brainfpv/auto_sync_threshold.h"
+
 #include "ch.h"
 #include "video.h"
 #include "images.h"
@@ -117,6 +119,12 @@ PG_REGISTER_WITH_RESET_TEMPLATE(bfOsdConfig_t, bfOsdConfig, PG_BRAINFPV_OSD_CONF
 #define BRAINFPV_OSD_BLACK_LEVEL_DEFAULT 0
 #endif
 
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+#define BRAINFPV_OSD_SYNC_TH_MODE_DEFAULT SYNC_THRESHOLD_AUTO
+#else
+#define BRAINFPV_OSD_SYNC_TH_MODE_DEFAULT SYNC_THRESHOLD_MANUAL
+#endif
+
 PG_RESET_TEMPLATE(bfOsdConfig_t, bfOsdConfig,
   .sync_threshold = BRAINFPV_OSD_SYNC_TH_DEFAULT,
   .white_level    = BRAINFPV_OSD_WHITE_LEVEL_DEFAULT,
@@ -151,6 +159,7 @@ PG_RESET_TEMPLATE(bfOsdConfig_t, bfOsdConfig,
   .crsf_link_stats_snr = CRSF_SNR_LOW,
   .crsf_link_stats_snr_threshold = -2,
   .x_scale_diff = 0,
+  .sync_threshold_mode = BRAINFPV_OSD_SYNC_TH_MODE_DEFAULT,
 );
 
 const char * const gitTag = __GIT_TAG__;
@@ -190,6 +199,10 @@ void osdShowArmed(void);
 
 #if defined(BRAINFPV_OSD_CMS_BG_BOX)
 static void draw_cms_background_box(void);
+#endif
+
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+extern bool useAutoSyncThreshold;
 #endif
 
 enum BrainFPVOSDMode {
@@ -395,16 +408,15 @@ static void brainFpvOsdInitStm32Cmp(void)
         Error_Handler();
     }
 
-    brainFpvOsdSetSyncThreshold(bfOsdConfig()->sync_threshold);
+    brainFpvOsdSetSyncThresholdMv(4 * bfOsdConfig()->sync_threshold);
 
     HAL_COMP_Start(&hcomp_video_cmp);
 }
 
-void brainFpvOsdSetSyncThreshold(uint8_t threshold)
+void brainFpvOsdSetSyncThresholdMv(uint16_t threshold_mv)
 {
-    // threshold is in 2mV steps
     if (hcomp_video_cmp.Instance) {
-        HAL_DAC_SetValue(&hdac_video_cmp, DAC_CHANNEL_1, DAC_ALIGN_12B_R, ((uint32_t)threshold * 4 * 4095) / 3300);
+        HAL_DAC_SetValue(&hdac_video_cmp, DAC_CHANNEL_1, DAC_ALIGN_12B_R, ((uint32_t)threshold_mv * 4095) / ADC_VOLTAGE_REFERENCE_MV);
     }
 }
 #endif
@@ -555,6 +567,10 @@ void osdMain(void) {
     uint32_t key_time = 0;
     uint32_t currentTime;
 
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+    uint16_t syncTh;
+#endif
+
     crosshair_x = GRAPHICS_X_MIDDLE;
     crosshair_y = GRAPHICS_Y_MIDDLE;
 
@@ -562,6 +578,13 @@ void osdMain(void) {
         if (chBSemWaitTimeout(&onScreenDisplaySemaphore, TIME_MS2I(500)) == MSG_TIMEOUT) {
             // No trigger received within 500ms, re-enable the video
             video_qspi_enable();
+
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+            if (useAutoSyncThreshold) {
+                syncTh = autoSyncThresholdGet();
+                brainFpvOsdSetSyncThresholdMv(syncTh);
+            }
+#endif
         }
 
         currentTime = micros();
@@ -636,6 +659,16 @@ void osdMain(void) {
                     break;
             }
         }
+
+#if defined(USE_BRAINFPV_AUTO_SYNC_THRESHOLD)
+       if (useAutoSyncThreshold && (draw_cnt & 0x04)) {
+           syncTh = autoSyncThresholdGet();
+           brainFpvOsdSetSyncThresholdMv(syncTh);
+       }
+       //char tmp[30];
+       //tfp_sprintf(tmp, "SYNC TH: %d mV", syncTh);
+       //draw_string(tmp, GRAPHICS_LEFT, GRAPHICS_BOTTOM - 20, 0, 0, TEXT_VA_TOP, TEXT_HA_LEFT, FONT8X10);
+#endif
 
 #if defined(BRAINFPV_OSD_SHOW_DRAW_TIME)
         uint32_t t_draw = micros() - currentTime;
