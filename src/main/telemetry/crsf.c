@@ -106,7 +106,11 @@ bool bufferCrsfMspFrame(uint8_t *frameStart, int frameLength)
 
 bool handleCrsfMspFrameBuffer(uint8_t payloadSize, mspResponseFnPtr responseFn)
 {
-    bool requestHandled = false;
+    static bool replyPending = false;
+    if (replyPending) {
+        replyPending = sendMspReply(payloadSize, responseFn);
+        return replyPending;
+    }
     if (!mspRxBuffer.len) {
         return false;
     }
@@ -114,17 +118,17 @@ bool handleCrsfMspFrameBuffer(uint8_t payloadSize, mspResponseFnPtr responseFn)
     while (true) {
         const int mspFrameLength = mspRxBuffer.bytes[pos];
         if (handleMspFrame(&mspRxBuffer.bytes[CRSF_MSP_LENGTH_OFFSET + pos], mspFrameLength, NULL)) {
-            requestHandled |= sendMspReply(payloadSize, responseFn);
+            replyPending |= sendMspReply(payloadSize, responseFn);
         }
         pos += CRSF_MSP_LENGTH_OFFSET + mspFrameLength;
         ATOMIC_BLOCK(NVIC_PRIO_SERIALUART1) {
             if (pos >= mspRxBuffer.len) {
                 mspRxBuffer.len = 0;
-                return requestHandled;
+                return replyPending;
             }
         }
     }
-    return requestHandled;
+    return replyPending;
 }
 #endif
 
@@ -244,15 +248,26 @@ int16_t     Roll angle ( rad / 10000 )
 int16_t     Yaw angle ( rad / 10000 )
 */
 
-#define DECIDEGREES_TO_RADIANS10000(angle) ((int16_t)(1000.0f * (angle) * RAD))
+// convert andgle in decidegree to radians/10000 with reducing angle to +/-180 degree range
+static int16_t decidegrees2Radians10000(int16_t angle_decidegree)
+{
+    while (angle_decidegree > 1800) {
+        angle_decidegree -= 3600;
+    }
+    while (angle_decidegree < -1800) {
+        angle_decidegree += 3600;
+    }
+    return (int16_t)(RAD * 1000.0f * angle_decidegree);
+}
 
+// fill dst buffer with crsf-attitude telemetry frame
 void crsfFrameAttitude(sbuf_t *dst)
 {
      sbufWriteU8(dst, CRSF_FRAME_ATTITUDE_PAYLOAD_SIZE + CRSF_FRAME_LENGTH_TYPE_CRC);
      sbufWriteU8(dst, CRSF_FRAMETYPE_ATTITUDE);
-     sbufWriteU16BigEndian(dst, DECIDEGREES_TO_RADIANS10000(attitude.values.pitch));
-     sbufWriteU16BigEndian(dst, DECIDEGREES_TO_RADIANS10000(attitude.values.roll));
-     sbufWriteU16BigEndian(dst, DECIDEGREES_TO_RADIANS10000(attitude.values.yaw));
+     sbufWriteU16BigEndian(dst, decidegrees2Radians10000(attitude.values.pitch));
+     sbufWriteU16BigEndian(dst, decidegrees2Radians10000(attitude.values.roll));
+     sbufWriteU16BigEndian(dst, decidegrees2Radians10000(attitude.values.yaw));
 }
 
 /*
@@ -317,8 +332,8 @@ uint32_t    Null Bytes
 uint8_t     255 (Max MSP Parameter)
 uint8_t     0x01 (Parameter version 1)
 */
-void crsfFrameDeviceInfo(sbuf_t *dst) {
-
+void crsfFrameDeviceInfo(sbuf_t *dst)
+{
     char buff[30];
     tfp_sprintf(buff, "%s %s: %s", FC_FIRMWARE_NAME, FC_VERSION_STRING, systemConfig()->boardIdentifier);
 
@@ -328,7 +343,7 @@ void crsfFrameDeviceInfo(sbuf_t *dst) {
     sbufWriteU8(dst, CRSF_ADDRESS_RADIO_TRANSMITTER);
     sbufWriteU8(dst, CRSF_ADDRESS_FLIGHT_CONTROLLER);
     sbufWriteStringWithZeroTerminator(dst, buff);
-    for (unsigned int ii=0; ii<12; ii++) {
+    for (unsigned int ii = 0; ii < 12; ii++) {
         sbufWriteU8(dst, 0x00);
     }
     sbufWriteU8(dst, CRSF_DEVICEINFO_PARAMETER_COUNT);
@@ -445,7 +460,6 @@ void crsfScheduleDeviceInfoResponse(void)
 {
     deviceInfoReplyPending = true;
 }
-
 
 void initCrsfTelemetry(void)
 {
