@@ -60,6 +60,7 @@
 #include "drivers/sdcard.h"
 #include "drivers/time.h"
 
+#include "fc/core.h"
 #include "fc/rc_controls.h"
 #include "fc/rc_modes.h"
 #include "fc/runtime_config.h"
@@ -79,6 +80,7 @@
 
 #include "osd/osd.h"
 #include "osd/osd_elements.h"
+#include "osd/osd_warnings.h"
 
 #include "pg/motor.h"
 #include "pg/pg.h"
@@ -1062,6 +1064,10 @@ timeDelta_t osdShowArmed(void)
     }
     displayWrite(osdDisplayPort, 12, 11, DISPLAYPORT_ATTR_NONE, "ARMED");
 
+    if (isFlipOverAfterCrashActive()) {
+        displayWrite(osdDisplayPort, 8, 8, DISPLAYPORT_ATTR_NONE, CRASH_FLIP_WARNING);
+    }
+
     return ret;
 }
 
@@ -1133,8 +1139,9 @@ void osdProcessStats2(timeUs_t currentTimeUs)
 
     if (resumeRefreshAt) {
         if (cmp32(currentTimeUs, resumeRefreshAt) < 0) {
-            // in timeout period, check sticks for activity to resume display.
-            if (IS_HI(THROTTLE) || IS_HI(PITCH)) {
+            // in timeout period, check sticks for activity or CRASH FLIP switch to resume display.
+            if (!ARMING_FLAG(ARMED) &&
+                (IS_HI(THROTTLE) || IS_HI(PITCH) || IS_RC_MODE_ACTIVE(BOXFLIPOVERAFTERCRASH))) {
                 resumeRefreshAt = currentTimeUs;
             }
             return;
