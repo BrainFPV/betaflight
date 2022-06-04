@@ -41,6 +41,7 @@
 
 #ifdef USE_ACCGYRO_BMI160
 
+#include "config/config.h"
 #include "drivers/accgyro/accgyro.h"
 #include "drivers/accgyro/accgyro_spi_bmi160.h"
 #include "drivers/bus_spi.h"
@@ -53,6 +54,17 @@
 #include "drivers/time.h"
 
 #include "sensors/gyro.h"
+
+#if defined(USE_CHIBIOS)
+#include "ch.h"
+extern binary_semaphore_t gyroSem;
+bool gyro_sample_processed = false;
+#endif
+
+#if defined(BRAINFPV)
+#include "brainfpv/brainfpv_osd.h"
+#include "brainfpv/brainfpv_system.h"
+#endif
 
 // 10 MHz max SPI frequency
 #define BMI160_MAX_SPI_CLK_HZ 10000000
@@ -140,18 +152,29 @@ static void BMI160_Init(const extDevice_t *dev)
         return;
     }
 
-    bool do_foc = false;
-
     /* Perform fast offset compensation if requested */
-    if (do_foc) {
-        BMI160_do_foc(dev);
+#ifdef BRAINFPV
+    /* Perform fast offset compensation if requested */
+    if (bfOsdConfig()->bmi160foc) {
+        int16_t foc_ret = BMI160_do_foc(dev);
+        bfOsdConfigMutable()->bmi160foc = false;
+        bfOsdConfigMutable()->bmi160foc_ret = foc_ret;
+        writeEEPROM();
     }
+#endif
 
     BMI160InitDone = true;
 }
 
 static uint8_t getBmiOsrMode()
 {
+
+#if defined(BRAINFPV)
+    if (brainFpvSystemConfig()->bmi_bwp_norm) {
+        return BMI160_VAL_GYRO_CONF_BWP_NORM;
+    }
+#endif
+
     switch(gyroConfig()->gyro_hardware_lpf) {
         case GYRO_HARDWARE_LPF_NORMAL:
             return BMI160_VAL_GYRO_CONF_BWP_OSR4;
@@ -273,6 +296,13 @@ busStatus_e bmi160Intcallback(uint32_t arg)
     }
 
     gyro->dataReady = true;
+
+#if defined(USE_CHIBIOS)
+    chSysLockFromISR();
+    gyro_sample_processed = false;
+    chBSemSignalI(&gyroSem);
+    chSysUnlockFromISR();
+#endif /* defined(USE_CHIBIOS) */
 
     return BUS_READY;
 }
@@ -428,6 +458,11 @@ static bool bmi160GyroRead(gyroDev_t *gyro)
         gyro->gyroADCRaw[X] = gyroData[1];
         gyro->gyroADCRaw[Y] = gyroData[2];
         gyro->gyroADCRaw[Z] = gyroData[3];
+
+#if defined(USE_CHIBIOS)
+        gyro_sample_processed = true;
+#endif
+
         break;
     }
 
@@ -446,7 +481,6 @@ void bmi160SpiGyroInit(gyroDev_t *gyro)
     bmi160IntExtiInit(gyro);
 #endif
 
-    spiSetClkDivisor(dev, spiCalculateDivider(BMI160_MAX_SPI_CLK_HZ));
 }
 
 void bmi160SpiAccInit(accDev_t *acc)
