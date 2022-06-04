@@ -1512,6 +1512,7 @@ void osdUpdate(timeUs_t currentTimeUs)
 bool brainFPVOsdUpdate(timeUs_t currentTimeUs)
 {
     bool moreElements = true;
+    static bool osdDismissStats = false;
 
     if (osdState == OSD_STATE_INIT) {
         // Initialize on first run
@@ -1531,13 +1532,22 @@ bool brainFPVOsdUpdate(timeUs_t currentTimeUs)
     showVisualBeeper = false;
     osdSyncBlink();
 
-    if (osdStatsVisible) {
+    if (osdStatsVisible && !osdDismissStats) {
         osdRenderStatsBegin();
         bool complete = osdRenderStatsContinue();
         while (!complete) {
             complete = osdRenderStatsContinue();
         }
+
+        if (ARMING_FLAG(ARMED) || (IS_HI(THROTTLE) || IS_HI(PITCH) || IS_RC_MODE_ACTIVE(BOXFLIPOVERAFTERCRASH))) {
+            osdDismissStats = true;
+        }
+
         return false;
+    }
+
+    if (!osdStatsVisible) {
+        osdDismissStats = false;
     }
 
     if (osdShowArming) {
