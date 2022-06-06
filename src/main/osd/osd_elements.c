@@ -162,6 +162,8 @@
 #include "sensors/esc_sensor.h"
 #include "sensors/sensors.h"
 
+const osdElementDrawFn osdElementDrawFunction[OSD_ITEM_COUNT];
+
 #if defined(USE_BRAINFPV_OSD)
 #include "brainfpv/brainfpv_osd.h"
 extern bool brainfpv_show_crsf_link_info;
@@ -1487,12 +1489,15 @@ static void osdElementWarnings(osdElementParms_t *element)
 
 #if defined(BRAINFPV)
 // Write warnings and link quality information into craft name element so it can be read by DJI system via MSP
-#define WARNING_LQ_TOGGLE_TIME_US 2000000
+#define WARNING_INFO_TOGGLE_TIME_US 2000000
 
 void brainFPVRenderCraftNameWarningsDji(char * buffer, int bufferLength)
 {
     static timeUs_t lastSwitchTimeUs = 0;
-    static bool showLq = false;
+    static bool showInfo = false;
+    static uint8_t activeElementIdx = 0;
+
+    timeUs_t currentTimeUs = micros();
 
     bool blinking;
     uint8_t displayAttr;
@@ -1500,46 +1505,139 @@ void brainFPVRenderCraftNameWarningsDji(char * buffer, int bufferLength)
     renderOsdWarning(buffer, &blinking, &displayAttr);
 
     if (displayAttr == DISPLAYPORT_ATTR_NONE) {
-        showLq = true;
+        // No warnings: Only show info
+        showInfo = true;
+        if (currentTimeUs - lastSwitchTimeUs > WARNING_INFO_TOGGLE_TIME_US) {
+            // advance index
+            lastSwitchTimeUs = currentTimeUs;
+            activeElementIdx += 1;
+        }
     }
     else {
-        timeUs_t currentTimeUs = micros();
-        timeUs_t toggleTime = WARNING_LQ_TOGGLE_TIME_US;
-
+        // Warnings present: Toggle between warning and info
+        timeUs_t toggleTime = WARNING_INFO_TOGGLE_TIME_US;
         if (blinking) {
             toggleTime = toggleTime >> 1;
         }
 
         if (currentTimeUs - lastSwitchTimeUs > toggleTime) {
-            showLq = !showLq;
+            showInfo = !showInfo;
             lastSwitchTimeUs = currentTimeUs;
+            if (showInfo) {
+                // advance index
+                activeElementIdx += 1;
+            }
         }
     }
 
-    if (showLq) {
-        // Show link quality and tx power
+    if (showInfo) {
+        // Show various OSD elements that are not supported by DJI system
         osdElementParms_t dummyElement;
         char elemBuff[OSD_ELEMENT_BUFFER_LENGTH] = "";
         dummyElement.buff = (char *)&elemBuff[0];
 
-        osdElementLinkQuality(&dummyElement);
+        buffer[0] = '\0';
 
-        if (strlen(elemBuff)) {
-            strncpy(buffer, "LQ: ", bufferLength);
-            strncpy(&buffer[4], &elemBuff[1], bufferLength - 4);
+        const char * elementPrefix[] = {"LQ", "TX", "RSSI", "THR", "CORE", "EFF", "DIST"};
+        const uint8_t supportedElements[] = {OSD_LINK_QUALITY, OSD_TX_UPLINK_POWER, OSD_RSSI_DBM_VALUE, OSD_THROTTLE_POS,
+                                             OSD_CORE_TEMPERATURE, OSD_EFFICIENCY, OSD_FLIGHT_DIST};
+
+        uint8_t activeElements[sizeof(supportedElements)];
+        uint8_t numActiveElements = 0;
+
+        for (uint8_t i = 0; i < sizeof(supportedElements); i++) {
+            if (VISIBLE(osdElementConfig()->item_pos[supportedElements[i]])) {
+                activeElements[numActiveElements] = i;
+                numActiveElements += 1;
+            }
         }
-        else {
+
+        if (numActiveElements == 0) {
+            // No info elements selected: Show NAME
+            strncpy(buffer, pilotConfig()->name, bufferLength);
             return;
         }
 
-        osdElementTxUplinkPower(&dummyElement);
+        if (activeElementIdx >= numActiveElements) {
+            activeElementIdx = 0;
+        }
 
-        if (strlen(elemBuff)) {
-            int pos = strlen(buffer);
-            strncpy(&buffer[pos], &elemBuff[1], bufferLength - pos);
+        // Render the prefix
+        tfp_sprintf(buffer, "%s: ", elementPrefix[activeElements[activeElementIdx]]);
+        uint8_t prefix_len = strlen(buffer);
+
+        // Render the element
+        uint8_t activeElement = supportedElements[activeElements[activeElementIdx]];
+
+        switch (activeElement) {
+            case OSD_CORE_TEMPERATURE:
+                {
+                    char unit = osdGetTemperatureSymbolForSelectedUnit() == SYM_C ? 'C' : 'F';
+                    tfp_sprintf(&buffer[prefix_len], "%3d%c", osdConvertTemperatureToSelectedUnit(getCoreTemperatureCelsius()), unit);
+                }
+                break;
+            case OSD_EFFICIENCY:
+                {
+                    osdElementEfficiency(&dummyElement);
+                    // Exclude the last 2 chars (symbols for mAh and distance unit)
+                    uint8_t elemLen = strlen(elemBuff);
+                    if (elemLen > bufferLength - prefix_len) {
+                        elemLen = bufferLength - prefix_len;
+                    }
+                    if (elemLen >= 2) {
+                        elemBuff[elemLen - 2] = '\0';
+                    }
+                    tfp_sprintf(&buffer[prefix_len], "%smAh", elemBuff);
+                }
+                break;
+            case OSD_FLIGHT_DIST:
+                {
+                    osdElementGpsFlightDistance(&dummyElement);
+                    uint8_t elemLen = strlen(elemBuff);
+                    if (elemLen > bufferLength - prefix_len - 2) {
+                        elemLen = bufferLength - prefix_len - 2;
+                    }
+
+                    if (elemLen <= 2) {
+                        // No distance because no GPS FIX
+                        strncpy(&buffer[prefix_len], "--", bufferLength - prefix_len);
+                    }
+                    else {
+                        // Fist char is distance symbol, last is unit symbol
+                        const char * unitStr;
+                        switch (elemBuff[elemLen - 1]) {
+                            case SYM_FT:
+                                unitStr = "FT";
+                                break;
+                            case SYM_MILES:
+                                unitStr = "M";
+                                break;
+                            case SYM_M:
+                                unitStr = "m";
+                                break;
+                            default:
+                                unitStr = "km";
+                                break;
+                        }
+                        elemBuff[elemLen - 1] = '\0';
+                        tfp_sprintf(&buffer[prefix_len], "%s%s", &elemBuff[1], unitStr);
+                    }
+                }
+                break;
+            default:
+                // Use the element draw function and exclude leading symbol character
+                if (osdElementDrawFunction[activeElement]) {
+                    osdElementDrawFunction[activeElement](&dummyElement);
+                    if (elemBuff[0] != '\0') {
+                        strncpy(&buffer[prefix_len], &elemBuff[1], bufferLength - prefix_len);
+                    }
+                }
+                else {
+                    // No draw function: should never happen
+                    strncpy(&buffer[prefix_len], "NA", bufferLength - prefix_len);
+                }
         }
     }
-
 }
 #endif
 

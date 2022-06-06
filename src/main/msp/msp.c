@@ -1145,10 +1145,11 @@ static bool mspProcessOutCommand(int16_t cmdMSP, sbuf_t *dst)
 
     case MSP_NAME:
 #if defined(BRAINFPV)
-        if (!isUsbMspPort && brainFpvSystemConfig()->dji_osd_warnings_lq) {
+        if (!isUsbMspPort && brainFpvSystemConfig()->dji_osd_warnings_info) {
             // Write warnings and LQ instead of name
-            char buffer[MAX_NAME_LENGTH + 1];
-            brainFPVRenderCraftNameWarningsDji(buffer, MAX_NAME_LENGTH);
+            char buffer[BRAINFPV_DJI_OSD_ELEM_LENGTH + 1];
+            brainFPVRenderCraftNameWarningsDji(buffer, BRAINFPV_DJI_OSD_ELEM_LENGTH);
+            buffer[BRAINFPV_DJI_OSD_ELEM_LENGTH] = '\0';
             for (uint8_t i = 0; i < strlen(buffer); i++) {
                 sbufWriteU8(dst, buffer[i]);
             }
