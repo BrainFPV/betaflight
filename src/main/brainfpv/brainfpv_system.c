@@ -153,7 +153,7 @@ void brainFPVSystemInit(void)
 #if defined(BRAINFPV_DEBUG_PIN)
    debugPin = IOGetByTag(IO_TAG(BRAINFPV_DEBUG_PIN));
    IOInit(debugPin,  OWNER_OSD, 0);
-   IOConfigGPIO(debugPin, IO_CONFIG(GPIO_Mode_OUT, GPIO_Speed_2MHz, GPIO_OType_PP, GPIO_PuPd_DOWN));
+   IOConfigGPIO(debugPin, IO_CONFIG(GPIO_MODE_OUTPUT_PP, 0, GPIO_NOPULL));
    IOLo(debugPin);
 #endif
 }
