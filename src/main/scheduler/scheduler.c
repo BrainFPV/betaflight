@@ -462,6 +462,10 @@ FAST_CODE void scheduler(void)
     uint32_t nextTargetCycles = 0;
     int32_t schedLoopRemainingCycles;
 
+#if defined(USE_CHIBIOS)
+    static bool runGyroNow = false;
+#endif
+
 #if defined(UNIT_TEST)
     if (nextTargetCycles == 0) {
         lastTargetCycles = getCycleCounter();
@@ -476,7 +480,16 @@ FAST_CODE void scheduler(void)
 #if defined(UNIT_TEST)
         lastTargetCycles = clockMicrosToCycles(gyroTask->lastExecutedAtUs);
 #endif
+
         nextTargetCycles = lastTargetCycles + desiredPeriodCycles;
+
+#if defined(USE_CHIBIOS)
+        if (runGyroNow) {
+            nextTargetCycles = nowCycles;
+            runGyroNow = false;
+        }
+#endif
+
         schedLoopRemainingCycles = cmpTimeCycles(nextTargetCycles, nowCycles);
 
         if (schedLoopRemainingCycles < -desiredPeriodCycles) {
@@ -726,6 +739,7 @@ FAST_CODE void scheduler(void)
             // wait for gyro if no tasks are ready
             if ((selectedTask == NULL) && gyro_sample_processed) {
                 chBSemWaitTimeout(&gyroSem, TIME_MS2I(2));
+                runGyroNow = true;
             }
         }
 #endif
