@@ -30,6 +30,7 @@ typedef struct brainFpvSystemConfig_s {
     uint8_t status_led_brightness;
     uint8_t bmi_bwp_norm;
     uint8_t dji_osd_warnings_info;
+    uint8_t dji_osd_rssi_use_lq;
 } brainFpvSystemConfig_t;
 
 PG_DECLARE(brainFpvSystemConfig_t, brainFpvSystemConfig);

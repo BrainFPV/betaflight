@@ -1754,6 +1754,7 @@ SLOW_CONST const clivalue_t valueTable[] = {
 #if defined(BRAINFPV)
     { "brainfpv_bmi_bwp_norm",    VAR_UINT8  | MASTER_VALUE, .config.minmax = { 0, 1 }, PG_BRAINFPV_SYSTEM_CONFIG, offsetof(brainFpvSystemConfig_t, bmi_bwp_norm) },
     { "brainfpv_dji_osd_warnings_info", VAR_UINT8  | MASTER_VALUE, .config.minmax = { 0, 1 }, PG_BRAINFPV_SYSTEM_CONFIG, offsetof(brainFpvSystemConfig_t, dji_osd_warnings_info) },
+    { "brainfpv_dji_osd_rssi_use_lq", VAR_UINT8  | MASTER_VALUE, .config.minmax = { 0, 1 }, PG_BRAINFPV_SYSTEM_CONFIG, offsetof(brainFpvSystemConfig_t, dji_osd_rssi_use_lq) },
 #endif
 
 #ifdef USE_RX_FLYSKY

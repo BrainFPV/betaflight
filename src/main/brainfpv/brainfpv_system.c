@@ -52,6 +52,7 @@ PG_RESET_TEMPLATE(brainFpvSystemConfig_t, brainFpvSystemConfig,
   .status_led_brightness = 255,
   .bmi_bwp_norm = 1,
   .dji_osd_warnings_info = 1,
+  .dji_osd_rssi_use_lq = 1,
 );
 
 PG_REGISTER_WITH_RESET_TEMPLATE(brainFpvSystemConfig_t, brainFpvSystemConfig, PG_BRAINFPV_SYSTEM_CONFIG, 0);
