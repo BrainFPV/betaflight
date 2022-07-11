@@ -459,16 +459,16 @@ static bool bmi160GyroRead(gyroDev_t *gyro)
         gyro->gyroADCRaw[Y] = gyroData[2];
         gyro->gyroADCRaw[Z] = gyroData[3];
 
-#if defined(USE_CHIBIOS)
-        gyro_sample_processed = true;
-#endif
-
         break;
     }
 
     default:
         break;
     }
+
+#if defined(USE_CHIBIOS)
+    gyro_sample_processed = true;
+#endif
 
     return true;
 }
