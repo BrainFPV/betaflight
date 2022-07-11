@@ -734,11 +734,12 @@ FAST_CODE void scheduler(void)
                 selectedTask->anticipatedExecutionTime *= TASK_AGE_EXPEDITE_SCALE;
             }
         }
+
 #if defined(USE_CHIBIOS)
-        else {
-            // wait for gyro if no tasks are ready
-            if ((selectedTask == NULL) && gyro_sample_processed) {
-                chBSemWaitTimeout(&gyroSem, TIME_MS2I(2));
+        // wait for gyro if no tasks are ready
+        if ((selectedTask == NULL) && gyro_sample_processed) {
+            chBSemReset(&gyroSem, true); // make sure semaphore is taken
+            if (chBSemWaitTimeout(&gyroSem, TIME_MS2I(10)) == MSG_OK) {
                 runGyroNow = true;
             }
         }
