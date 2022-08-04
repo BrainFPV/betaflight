@@ -34,10 +34,11 @@ MEMORY
     DTCM_RAM_INIT (rwx) : ORIGIN = 0x20000000, LENGTH = 16K  /* DTCM RAM loaded by bootloader. 32K max */
     DTCM_RAM (rwx)      : ORIGIN = 0x20004000, LENGTH = 112K /* Not loaded by bootloader */
 
-    CODE_RAM (rwx)    : ORIGIN = 0x24000000, LENGTH = 512K
+    CODE_RAM (rwx)    : ORIGIN = 0x24000000, LENGTH = 504K
+    AXI_DMA_RAM (rwx) : ORIGIN = 0x2407E000, LENGTH = 8K
 
     D2_RAM (rwx)      : ORIGIN = 0x30000000, LENGTH = 224K /* SRAM1 + SRAM2 */
-    D2_DMA_RAM (rwx)  : ORIGIN = 0x30038000, LENGTH = 32K  /* Needs to be at address that aligns to size for MPU to work */
+    D2_DMA_RAM (rwx)  : ORIGIN = 0x30038000, LENGTH = 32K
 
     MEMORY_B1 (rx)    : ORIGIN = 0x60000000, LENGTH = 0K
 }
@@ -209,6 +210,19 @@ SECTIONS
     __fastram_bss_end__ = _efastram_bss;
   } >DTCM_RAM
   
+  /* DMA RAM in AXI SRAM, needed for SDMMC1 */
+  .DMA_RW_AXI (NOLOAD) :
+  {
+    . = ALIGN(32);
+    PROVIDE(dmarwaxi_start = .);
+    _sdmarwaxi = .;
+    _dmarwaxi_start__ = _sdmarwaxi;
+    KEEP(*(.DMA_RW_AXI))
+    PROVIDE(dmarwaxi_end = .);
+    _edmarwaxi = .;
+    _dmarwaxi_end__ = _edmarwaxi;
+  } >AXI_DMA_RAM
+
   /* D2 RAM */  
   slow_const = LOADADDR(.slow_const); 
   .slow_const :
@@ -290,19 +304,6 @@ SECTIONS
     PROVIDE(dmaram_end = .);
     _edmaram = .;
     _dmaram_end__ = _edmaram;
-  } >D2_DMA_RAM
-  
-  /* Also in D2 RAM, other H7's have it in AXI */
-  .DMA_RW_AXI (NOLOAD) :
-  {
-    . = ALIGN(32);
-    PROVIDE(dmarwaxi_start = .);
-    _sdmarwaxi = .;
-    _dmarwaxi_start__ = _sdmarwaxi;
-    KEEP(*(.DMA_RW_AXI))
-    PROVIDE(dmarwaxi_end = .);
-    _edmarwaxi = .;
-    _dmarwaxi_end__ = _edmarwaxi;
   } >D2_DMA_RAM
 
   .persistent_data (NOLOAD) :
