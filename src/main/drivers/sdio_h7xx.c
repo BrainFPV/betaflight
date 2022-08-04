@@ -565,8 +565,10 @@ SD_Error_t SD_WriteBlocks_DMA(uint64_t WriteAddress, uint32_t *buffer, uint32_t 
         return SD_ADDR_MISALIGNED;
     }
 
+#if !defined(DEBUG)
     // Ensure the data is flushed to main memory
     SCB_CleanDCache_by_Addr(buffer, NumberOfBlocks * BlockSize);
+#endif
 
     HAL_StatusTypeDef status;
     if ((status = HAL_SD_WriteBlocks_DMA(&hsd1, (uint8_t *)buffer, WriteAddress, NumberOfBlocks)) != HAL_OK) {
@@ -637,8 +639,10 @@ void HAL_SD_RxCpltCallback(SD_HandleTypeDef *hsd)
        the SCB_InvalidateDCache_by_Addr() requires a 32-Byte aligned address,
        adjust the address and the D-Cache size to invalidate accordingly.
      */
+#if !defined(DEBUG)
     uint32_t alignedAddr = (uint32_t)sdReadParameters.buffer &  ~0x1F;
     SCB_InvalidateDCache_by_Addr((uint32_t*)alignedAddr, sdReadParameters.NumberOfBlocks * sdReadParameters.BlockSize + ((uint32_t)sdReadParameters.buffer - alignedAddr));
+#endif
 }
 
 void HAL_SD_ErrorCallback(SD_HandleTypeDef *hsd)
