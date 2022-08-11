@@ -20,6 +20,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "platform.h"
 
@@ -28,6 +29,7 @@
 #ifdef USE_FLASH_M25P16
 
 #include "drivers/bus_spi.h"
+#include "drivers/bus_quadspi.h"
 #include "drivers/flash.h"
 #include "drivers/flash_impl.h"
 #include "drivers/io.h"
@@ -139,21 +141,39 @@ STATIC_ASSERT(M25P16_PAGESIZE < FLASH_MAX_PAGE_SIZE, M25P16_PAGESIZE_too_small);
 
 const flashVTable_t m25p16_vTable;
 
+#ifdef USE_QUADSPI
+const flashVTable_t m25p16Qspi_vTable;
+// Buffer needed for assembling flash page when writing
+static uint8_t m25p16_page_buffer[M25P16_PAGESIZE];
+#endif /* USE_QUADSPI */
+
 static uint8_t m25p16_readStatus(flashDevice_t *fdevice)
 {
-    STATIC_DMA_DATA_AUTO uint8_t readStatus[2] = { M25P16_INSTRUCTION_READ_STATUS_REG, 0 };
-    STATIC_DMA_DATA_AUTO uint8_t readyStatus[2];
+    uint8_t status;
+    if (fdevice->io.mode == FLASHIO_SPI) {
+        STATIC_DMA_DATA_AUTO uint8_t readStatus[2] = { M25P16_INSTRUCTION_READ_STATUS_REG, 0 };
+        STATIC_DMA_DATA_AUTO uint8_t readyStatus[2];
 
-    spiReadWriteBuf(fdevice->io.handle.dev, readStatus, readyStatus, sizeof(readStatus));
+        spiReadWriteBuf(fdevice->io.handle.dev, readStatus, readyStatus, sizeof(readStatus));
 
-    return readyStatus[1];
+        status = readyStatus[1];
+    }
+#ifdef USE_QUADSPI
+        else if (fdevice->io.mode == FLASHIO_QUADSPI) {
+            quadSpiReceive1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_READ_STATUS_REG, 0, &status, 1);
+        }
+#endif
+
+    return status;
 }
 
 static bool m25p16_isReady(flashDevice_t *fdevice)
 {
     // If we're waiting on DMA completion, then SPI is busy
-    if (fdevice->io.handle.dev->bus->useDMA && spiIsBusy(fdevice->io.handle.dev)) {
-        return false;
+    if (fdevice->io.mode == FLASHIO_SPI) {
+        if (fdevice->io.handle.dev->bus->useDMA && spiIsBusy(fdevice->io.handle.dev)) {
+            return false;
+        }
     }
 
     // If couldBeBusy is false, don't bother to poll the flash chip for its status
@@ -215,8 +235,10 @@ bool m25p16_detect(flashDevice_t *fdevice, uint32_t chipID)
     geometry->sectorSize = geometry->pagesPerSector * geometry->pageSize;
     geometry->totalSize = geometry->sectorSize * geometry->sectors;
 
-    // Adjust the SPI bus clock frequency
-    spiSetClkDivisor(fdevice->io.handle.dev, spiCalculateDivider(maxReadClkSPIHz));
+    if (fdevice->io.mode == FLASHIO_SPI) {
+        // Adjust the SPI bus clock frequency
+        spiSetClkDivisor(fdevice->io.handle.dev, spiCalculateDivider(maxReadClkSPIHz));
+    }
 
     if (geometry->totalSize > 16 * 1024 * 1024) {
         fdevice->isLargeFlash = true;
@@ -224,11 +246,26 @@ bool m25p16_detect(flashDevice_t *fdevice, uint32_t chipID)
         // This routine blocks so no need to use static data
         uint8_t modeSet[] = { W25Q256_INSTRUCTION_ENTER_4BYTE_ADDRESS_MODE };
 
-        spiReadWriteBuf(fdevice->io.handle.dev, modeSet, NULL, sizeof(modeSet));
+        if (fdevice->io.mode == FLASHIO_SPI) {
+            spiReadWriteBuf(fdevice->io.handle.dev, modeSet, NULL, sizeof(modeSet));
+        }
+#ifdef USE_QUADSPI
+        else if (fdevice->io.mode == FLASHIO_QUADSPI) {
+            quadSpiTransmit1LINE(fdevice->io.handle.quadSpi, W25Q256_INSTRUCTION_ENTER_4BYTE_ADDRESS_MODE, 0, NULL, 0);
+        }
+#endif
     }
 
     fdevice->couldBeBusy = true; // Just for luck we'll assume the chip could be busy even though it isn't specced to be
-    fdevice->vTable = &m25p16_vTable;
+
+    if (fdevice->io.mode == FLASHIO_SPI) {
+        fdevice->vTable = &m25p16_vTable;
+    }
+#ifdef USE_QUADSPI
+    else if (fdevice->io.mode == FLASHIO_QUADSPI) {
+        fdevice->vTable = &m25p16Qspi_vTable;
+    }
+#endif
     return true;
 }
 
@@ -320,6 +357,20 @@ static void m25p16_eraseSector(flashDevice_t *fdevice, uint32_t address)
     spiWait(fdevice->io.handle.dev);
 }
 
+#ifdef USE_QUADSPI
+static void m25p16_eraseSectorQspi(flashDevice_t *fdevice, uint32_t address)
+{
+    address = TRANSLATE_ADDR(fdevice, address);
+
+    m25p16_waitForReady(fdevice);
+
+    quadSpiTransmit1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_WRITE_ENABLE, 0, NULL, 0);
+    quadSpiInstructionWithAddress1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_SECTOR_ERASE, 0, address, fdevice->isLargeFlash ? 32 : 24);
+
+    fdevice->couldBeBusy = true;
+}
+#endif
+
 static void m25p16_eraseCompletely(flashDevice_t *fdevice)
 {
     STATIC_DMA_DATA_AUTO uint8_t readStatus[2] = { M25P16_INSTRUCTION_READ_STATUS_REG, 0 };
@@ -339,6 +390,18 @@ static void m25p16_eraseCompletely(flashDevice_t *fdevice)
     // Block pending completion of SPI access, but the erase will be ongoing
     spiWait(fdevice->io.handle.dev);
 }
+
+#ifdef USE_QUADSPI
+static void m25p16_eraseCompletelyQspi(flashDevice_t *fdevice)
+{
+    m25p16_waitForReady(fdevice);
+
+    quadSpiTransmit1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_WRITE_ENABLE, 0, NULL, 0);
+    quadSpiTransmit1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_BULK_ERASE, 0, NULL, 0);
+
+    fdevice->couldBeBusy = true;
+}
+#endif
 
 static void m25p16_pageProgramBegin(flashDevice_t *fdevice, uint32_t address, void (*callback)(uint32_t length))
 {
@@ -435,6 +498,68 @@ static void m25p16_pageProgram(flashDevice_t *fdevice, uint32_t address, const u
     m25p16_pageProgramFinish(fdevice);
 }
 
+#ifdef USE_QUADSPI
+// Page programming QSPI mode
+
+static uint32_t m25p16_pageProgramContinueQspi(flashDevice_t *fdevice, uint8_t const **buffers, uint32_t *bufferSizes, uint32_t bufferCount)
+{
+    if (bufferCount == 0) {
+        return 0;
+    }
+
+    uint32_t dataSize;
+    const uint8_t * pData;
+
+    if (bufferCount == 1) {
+        dataSize = bufferSizes[0];
+        if (dataSize > M25P16_PAGESIZE) {
+            return 0;
+        }
+        pData = buffers[0];
+    } else {
+        // Need to copy all buffers into page buffer
+        dataSize = 0;
+        uint8_t * pBuffer = m25p16_page_buffer;
+        for (uint32_t i = 0; i < bufferCount; i++) {
+            dataSize += bufferSizes[i];
+            if (dataSize > sizeof(m25p16_page_buffer)) {
+                return 0;
+            }
+            memcpy(pBuffer, buffers[i], bufferSizes[i]);
+            pBuffer += bufferSizes[i];
+        }
+        pData = m25p16_page_buffer;
+    }
+
+    m25p16_waitForReady(fdevice);
+
+    quadSpiTransmit1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_WRITE_ENABLE, 0, NULL, 0);
+
+    quadSpiTransmitWithAddress1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_PAGE_PROGRAM, 0,
+                                    fdevice->currentWriteAddress, fdevice->isLargeFlash ? 32 : 24, pData, dataSize);
+
+    fdevice->currentWriteAddress += dataSize;
+
+    if (fdevice->callback) {
+        fdevice->callback(bufferSizes[0]);
+    }
+
+    fdevice->couldBeBusy = true;
+
+    return bufferSizes[0];
+}
+
+static void m25p16_pageProgramQspi(flashDevice_t *fdevice, uint32_t address, const uint8_t *data, uint32_t length, void (*callback)(uint32_t length))
+{
+    m25p16_pageProgramBegin(fdevice, address, callback);
+
+    m25p16_pageProgramContinueQspi(fdevice, &data, &length, 1);
+
+    m25p16_pageProgramFinish(fdevice);
+}
+#endif /* USE_QUADSPI */
+
+
 /**
  * Read `length` bytes into the provided `buffer` from the flash starting from the given `address` (which need not lie
  * on a page boundary).
@@ -474,6 +599,27 @@ static int m25p16_readBytes(flashDevice_t *fdevice, uint32_t address, uint8_t *b
     return length;
 }
 
+#ifdef USE_QUADSPI
+// Reading data QSPI mode
+
+static int m25p16_readBytesQspi(flashDevice_t *fdevice, uint32_t address, uint8_t *buffer, uint32_t length)
+{
+    address = TRANSLATE_ADDR(fdevice, address);
+
+    m25p16_waitForReady(fdevice);
+
+    // 1-line read command with no dummy bytes needs slower clock
+    quadSpiSetDivisor(fdevice->io.handle.quadSpi, QUADSPI_CLOCK_FAST);
+
+    quadSpiReceiveWithAddress1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_READ_BYTES, 0,
+                                   address, fdevice->isLargeFlash ? 32 : 24, buffer, length);
+
+    quadSpiSetDivisor(fdevice->io.handle.quadSpi, QUADSPI_CLOCK_ULTRAFAST);
+
+    return length;
+}
+#endif /* USE_QUADSPI */
+
 /**
  * Fetch information about the detected flash chip layout.
  *
@@ -496,4 +642,20 @@ const flashVTable_t m25p16_vTable = {
     .readBytes = m25p16_readBytes,
     .getGeometry = m25p16_getGeometry,
 };
+
+#ifdef USE_QUADSPI
+const flashVTable_t m25p16Qspi_vTable = {
+    .isReady = m25p16_isReady,
+    .waitForReady = m25p16_waitForReady,
+    .eraseSector = m25p16_eraseSectorQspi,
+    .eraseCompletely = m25p16_eraseCompletelyQspi,
+    .pageProgramBegin = m25p16_pageProgramBegin,
+    .pageProgramContinue = m25p16_pageProgramContinueQspi,
+    .pageProgramFinish = m25p16_pageProgramFinish,
+    .pageProgram = m25p16_pageProgramQspi,
+    .readBytes = m25p16_readBytesQspi,
+    .getGeometry = m25p16_getGeometry,
+};
+#endif /* USE_QUADSPI */
+
 #endif
