@@ -45,13 +45,13 @@
 #define USE_BRAINFPV_RGB_STATUS_LED
 #define USE_BRAINFPV_RGB_LED_TIMER
 #define BRAINFPV_RGB_LED_TIMER_NO 5
-#define LED0_PIN                PA2
+#define LED0_PIN                PA7
 #define LED0_INVERTED
-#define LED1_PIN                PA0
+#define LED1_PIN                PE5
 #define LED1_INVERTED
 
 #define USE_BEEPER
-#define BEEPER_PIN              PE5
+#define BEEPER_PIN              PE4
 #define BEEPER_INVERTED
 
 #define USE_PINIO
@@ -61,20 +61,20 @@
 #define USE_UART
 
 #define USE_UART1
-#define UART1_RX_PIN            PA10
+#define UART1_RX_PIN            PB15
 #define UART1_TX_PIN            PB14
 
 #define USE_UART2
-#define UART2_RX_PIN            PA3
+#define UART2_RX_PIN            PD6
 #define UART2_TX_PIN            PD5
 
 #define USE_UART3
-#define UART3_RX_PIN            PD9
+#define UART3_RX_PIN            PB11
 #define UART3_TX_PIN            PD8
 
 #define USE_UART4
 #define UART4_RX_PIN            PB8
-#define UART4_TX_PIN            PB9
+#define UART4_TX_PIN            PA0
 
 #define USE_UART5
 #define UART5_RX_PIN            PB12
@@ -85,7 +85,7 @@
 #define UART6_TX_PIN            PC6
 
 #define USE_UART7
-#define UART7_RX_PIN            PE7
+#define UART7_RX_PIN            PA8
 #define UART7_TX_PIN            NONE
 
 #define USE_VCP
@@ -125,7 +125,7 @@
 #define QUADSPI1_BK1_IO0_PIN PD11
 #define QUADSPI1_BK1_IO1_PIN PD12
 #define QUADSPI1_BK1_IO2_PIN PE2
-#define QUADSPI1_BK1_IO3_PIN PD13
+#define QUADSPI1_BK1_IO3_PIN PA1
 #define QUADSPI1_BK1_CS_PIN PB10
 
 #define QUADSPI1_BK2_IO0_PIN NONE
@@ -147,7 +147,7 @@
 
 #define USE_SDCARD
 #define USE_SDCARD_SDIO
-#define SDCARD_DETECT_PIN PA8
+#define SDCARD_DETECT_PIN PD9
 #define SDCARD_DETECT_INVERTED
 #define SDIO_DEVICE             SDIODEV_1
 #define SDIO_USE_4BIT           true
@@ -175,7 +175,7 @@
 
 //#define BMI270_SPI_DIVISOR   8
 
-#define GYRO_1_EXTI_PIN           PB5
+#define GYRO_1_EXTI_PIN           PB3
 #define GYRO_1_CS_PIN             PD3
 #define GYRO_1_SPI_INSTANCE       SPI1
 #define GYRO_1_ALIGN              CW0_DEG
@@ -190,7 +190,7 @@
 #define ADC1_INSTANCE ADC1
 #define ADC2_INSTANCE ADC2 // not used
 #define ADC3_INSTANCE ADC3 // ADC3 only for core temp and vrefint
-#define RSSI_ADC_PIN            PC4
+#define RSSI_ADC_PIN            PC1
 #define VBAT_ADC_PIN            PC0
 #define CURRENT_METER_ADC_PIN   PA6
 
@@ -224,9 +224,9 @@
 #define TARGET_IO_PORTF 0xffff
 #define TARGET_IO_PORTG 0xffff
 
-#define USABLE_TIMER_CHANNEL_COUNT 9
+#define USABLE_TIMER_CHANNEL_COUNT 11
 
-#define USED_TIMERS  ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(8) | TIM_N(12) )
+#define USED_TIMERS  ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(8) | TIM_N(14) | TIM_N(15) )
 
 #undef USE_DSHOT_BITBANG
 #undef USE_BRUSHED_ESC_AUTODETECT

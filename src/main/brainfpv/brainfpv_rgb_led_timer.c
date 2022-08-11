@@ -50,6 +50,7 @@ static bool ledOn[NUM_LEDS] = { 0 };
 void brainFpvRgbLedTimerInit(void)
 {
 
+// XXX fix this!
 #if BRAINFPV_RGB_LED_TIMER_NO == 5
     __HAL_RCC_TIM5_CLK_ENABLE();
 #else
