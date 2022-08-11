@@ -371,7 +371,7 @@ static void flashConfigurePartitions(void)
     }
 #endif
 
-#if defined(FIRMWARE_SIZE)
+#if defined(FIRMWARE_SIZE) && !defined(BRAINFPV)
     const uint32_t firmwareSize = (FIRMWARE_SIZE * 1024);
     flashSector_t firmwareSectors = (firmwareSize / flashGeometry->sectorSize);
 
