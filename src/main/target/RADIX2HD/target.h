@@ -45,17 +45,17 @@
 #define USE_BRAINFPV_RGB_STATUS_LED
 #define USE_BRAINFPV_RGB_LED_TIMER
 #define BRAINFPV_RGB_LED_TIMER_NO 5
-#define LED0_PIN                PA3
+#define LED0_PIN                PA2
 #define LED0_INVERTED
 #define LED1_PIN                PA0
 #define LED1_INVERTED
 
 #define USE_BEEPER
-#define BEEPER_PIN              PD14
+#define BEEPER_PIN              PE5
 #define BEEPER_INVERTED
 
 #define USE_PINIO
-#define PINIO1_PIN              PD15 // VREG HD
+#define PINIO1_PIN              PC14 // VREG HD
 #define USE_PINIOBOX
 
 #define USE_UART
@@ -65,33 +65,35 @@
 #define UART1_TX_PIN            PB14
 
 #define USE_UART2
-#define UART2_RX_PIN            PD6
+#define UART2_RX_PIN            PA3
 #define UART2_TX_PIN            PD5
 
 #define USE_UART3
-#define UART3_RX_PIN            PB11
-// Pin on HD connector
-//#define UART3_RX_PIN            PD9
+#define UART3_RX_PIN            PD9
 #define UART3_TX_PIN            PD8
 
 #define USE_UART4
-#define UART4_RX_PIN            PD0
-#define UART4_TX_PIN            PD1
+#define UART4_RX_PIN            PB8
+#define UART4_TX_PIN            PB9
 
 #define USE_UART5
-#define UART5_RX_PIN            PD2
-#define UART5_TX_PIN            PB6
+#define UART5_RX_PIN            PB12
+#define UART5_TX_PIN            PB13
 
 #define USE_UART6
 #define UART6_RX_PIN            PC7
 #define UART6_TX_PIN            PC6
+
+#define USE_UART7
+#define UART7_RX_PIN            PE7
+#define UART7_TX_PIN            NONE
 
 #define USE_VCP
 #define VBUS_SENSING_PIN        PA9
 #define VBUS_SENSING_ENABLED
 #define USE_USB48MHZ_PLL
 
-#define SERIAL_PORT_COUNT       7
+#define SERIAL_PORT_COUNT       8
 
 #define USE_SPI
 
@@ -99,22 +101,11 @@
 #define SPI1_SCK_PIN            PA5
 #define SPI1_MISO_PIN           PB4
 #define SPI1_MOSI_PIN           PD7
-//#define SPI1_TX_DMA_OPT           0
-
-#define USE_SPI_DEVICE_2
-#define SPI2_SCK_PIN            PD3
-#define SPI2_MISO_PIN           PC2
-#define SPI2_MOSI_PIN           PC1
-
-#define USE_SPI_DEVICE_3
-#define SPI3_SCK_PIN            PB3
-#define SPI3_MISO_PIN           PC11
-#define SPI3_MOSI_PIN           PC12
 
 #define USE_I2C
 #define USE_I2C_DEVICE_1
 #undef I2C1_OVERCLOCK
-#define I2C1_SCL                PB8
+#define I2C1_SCL                PB6
 #define I2C1_SDA                PB7
 #define I2C_DEVICE              (I2CDEV_1)
 
@@ -132,9 +123,9 @@
 #define USE_QUADSPI_DEVICE_1
 #define QUADSPI1_SCK_PIN PB2
 #define QUADSPI1_BK1_IO0_PIN PD11
-#define QUADSPI1_BK1_IO1_PIN PC10
+#define QUADSPI1_BK1_IO1_PIN PD12
 #define QUADSPI1_BK1_IO2_PIN PE2
-#define QUADSPI1_BK1_IO3_PIN PA1
+#define QUADSPI1_BK1_IO3_PIN PD13
 #define QUADSPI1_BK1_CS_PIN PB10
 
 #define QUADSPI1_BK2_IO0_PIN NONE
@@ -154,14 +145,21 @@
 #define CONFIG_IN_EXTERNAL_FLASH
 //#define CONFIG_IN_RAM
 
-#define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
-#define AFATFS_NUM_CACHE_SECTORS 32
 #define USE_SDCARD
-#define USE_SDCARD_SPI
-#define SDCARD_SPI_INSTANCE                 SPI1
+#define USE_SDCARD_SDIO
+#define SDCARD_DETECT_PIN PA8
 #define SDCARD_DETECT_INVERTED
-#define SDCARD_DETECT_PIN                   PE12
-#define SDCARD_SPI_CS_PIN                   PE14
+#define SDIO_DEVICE             SDIODEV_1
+#define SDIO_USE_4BIT           true
+#define SDIO_CK_PIN             PC12
+#define SDIO_CMD_PIN            PD2
+#define SDIO_D0_PIN             PC8
+#define SDIO_D1_PIN             PC9
+#define SDIO_D2_PIN             PC10
+#define SDIO_D3_PIN             PC11
+
+
+#define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
 #define USE_EXTI
 #define USE_GYRO
@@ -175,17 +173,15 @@
 #define USE_ACCGYRO_BMI270
 #undef USE_GYRO_DLPF_EXPERIMENTAL
 
-// SPI2 is running at 80MHz
-#define BMI270_SPI_DIVISOR   8
+//#define BMI270_SPI_DIVISOR   8
 
-#define GYRO_1_EXTI_PIN           PE4
-#define GYRO_1_CS_PIN             PE15
-#define GYRO_1_SPI_INSTANCE       SPI2
+#define GYRO_1_EXTI_PIN           PB5
+#define GYRO_1_CS_PIN             PD3
+#define GYRO_1_SPI_INSTANCE       SPI1
 #define GYRO_1_ALIGN              CW0_DEG
 #define GYRO_1_ALIGN              CW0_DEG
 
 #define USE_BARO
-#define USE_BARO_BMP388
 #define USE_BARO_DPS310
 
 #define USE_ADC
@@ -194,9 +190,9 @@
 #define ADC1_INSTANCE ADC1
 #define ADC2_INSTANCE ADC2 // not used
 #define ADC3_INSTANCE ADC3 // ADC3 only for core temp and vrefint
-#define RSSI_ADC_PIN            PC0
-#define VBAT_ADC_PIN            PA6
-#define CURRENT_METER_ADC_PIN   PB0
+#define RSSI_ADC_PIN            PC4
+#define VBAT_ADC_PIN            PC0
+#define CURRENT_METER_ADC_PIN   PA6
 
 #define BOARD_HAS_VOLTAGE_DIVIDER
 #define ADC_VOLTAGE_REFERENCE_MV 3285
@@ -228,9 +224,9 @@
 #define TARGET_IO_PORTF 0xffff
 #define TARGET_IO_PORTG 0xffff
 
-#define USABLE_TIMER_CHANNEL_COUNT 11
+#define USABLE_TIMER_CHANNEL_COUNT 9
 
-#define USED_TIMERS  ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(8) | TIM_N(12) | TIM_N(16) | TIM_N(17) )
+#define USED_TIMERS  ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(8) | TIM_N(12) )
 
 #undef USE_DSHOT_BITBANG
 #undef USE_BRUSHED_ESC_AUTODETECT
