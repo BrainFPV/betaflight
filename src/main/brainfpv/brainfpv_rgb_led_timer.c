@@ -37,6 +37,8 @@
 #define RGB_LED_PWM_FREQ_KHZ 45
 #define RGB_LED_PWM_PERIOD 256
 
+#define TIM_N(n) (1 << (n))
+
 extern const timerHardware_t timerHardwareRgbLed[3];
 extern const hsvColor_t hsv[];
 
@@ -50,11 +52,14 @@ static bool ledOn[NUM_LEDS] = { 0 };
 void brainFpvRgbLedTimerInit(void)
 {
 
-// XXX fix this!
-#if BRAINFPV_RGB_LED_TIMER_NO == 5
+#if BRAINFPV_RGB_LED_TIMERS & TIM_N(5)
     __HAL_RCC_TIM5_CLK_ENABLE();
-#else
-#error not supported
+#endif
+#if BRAINFPV_RGB_LED_TIMERS & TIM_N(14)
+    __HAL_RCC_TIM14_CLK_ENABLE();
+#endif
+#if BRAINFPV_RGB_LED_TIMERS & TIM_N(15)
+    __HAL_RCC_TIM15_CLK_ENABLE();
 #endif
 
     for (int i=0; i < 3; i++) {
