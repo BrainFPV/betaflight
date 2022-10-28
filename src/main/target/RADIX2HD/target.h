@@ -44,7 +44,7 @@
 
 #define USE_BRAINFPV_RGB_STATUS_LED
 #define USE_BRAINFPV_RGB_LED_TIMER
-#define BRAINFPV_RGB_LED_TIMER_NO 5
+#define BRAINFPV_RGB_LED_TIMERS (TIM_N(14) | TIM_N(15))
 #define LED0_PIN                PA7
 #define LED0_INVERTED
 #define LED1_PIN                PE5
