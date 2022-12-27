@@ -41,11 +41,13 @@
 
 #define M25P16_INSTRUCTION_RDID             SPIFLASH_INSTRUCTION_RDID
 #define M25P16_INSTRUCTION_READ_BYTES       0x03
+#define M25P16_INSTRUCTION_QUAD_READ        0x6B
 #define M25P16_INSTRUCTION_READ_STATUS_REG  0x05
 #define M25P16_INSTRUCTION_WRITE_STATUS_REG 0x01
 #define M25P16_INSTRUCTION_WRITE_ENABLE     0x06
 #define M25P16_INSTRUCTION_WRITE_DISABLE    0x04
 #define M25P16_INSTRUCTION_PAGE_PROGRAM     0x02
+#define M25P16_INSTRUCTION_QPAGE_PROGRAM    0x32
 #define M25P16_INSTRUCTION_SECTOR_ERASE     0xD8
 #define M25P16_INSTRUCTION_BULK_ERASE       0xC7
 
@@ -53,6 +55,8 @@
 #define M25P16_STATUS_FLAG_WRITE_ENABLED     0x02
 
 #define W25Q256_INSTRUCTION_ENTER_4BYTE_ADDRESS_MODE 0xB7
+
+#define M25P16_FAST_READ_DUMMY_CYCLES       8
 
 // SPI transaction segment indicies for m25p16_pageProgramContinue()
 enum {READ_STATUS, WRITE_ENABLE, PAGE_PROGRAM, DATA1, DATA2};
@@ -535,8 +539,8 @@ static uint32_t m25p16_pageProgramContinueQspi(flashDevice_t *fdevice, uint8_t c
 
     quadSpiTransmit1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_WRITE_ENABLE, 0, NULL, 0);
 
-    quadSpiTransmitWithAddress1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_PAGE_PROGRAM, 0,
-                                    fdevice->currentWriteAddress, fdevice->isLargeFlash ? 32 : 24, pData, dataSize);
+    quadSpiTransmitWithAddress4LINES(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_QPAGE_PROGRAM, 0,
+                                     fdevice->currentWriteAddress, fdevice->isLargeFlash ? 32 : 24, pData, dataSize);
 
     fdevice->currentWriteAddress += dataSize;
 
@@ -608,13 +612,8 @@ static int m25p16_readBytesQspi(flashDevice_t *fdevice, uint32_t address, uint8_
 
     m25p16_waitForReady(fdevice);
 
-    // 1-line read command with no dummy bytes needs slower clock
-    quadSpiSetDivisor(fdevice->io.handle.quadSpi, QUADSPI_CLOCK_FAST);
-
-    quadSpiReceiveWithAddress1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_READ_BYTES, 0,
-                                   address, fdevice->isLargeFlash ? 32 : 24, buffer, length);
-
-    quadSpiSetDivisor(fdevice->io.handle.quadSpi, QUADSPI_CLOCK_ULTRAFAST);
+    quadSpiReceiveWithAddress4LINES(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_QUAD_READ, M25P16_FAST_READ_DUMMY_CYCLES,
+                                    address, fdevice->isLargeFlash ? 32 : 24, buffer, length);
 
     return length;
 }
