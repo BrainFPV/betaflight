@@ -157,7 +157,7 @@
 #define DEFAULT_CPU_OVERCLOCK 0
 #endif
 
-#if defined(STM32H7) && defined(RADIX2)
+#if defined(STM32H7) && defined(BRAINFPV)
 #define SLOW_CONST                  __attribute__((section(".slow_const")))
 #define SLOW_CODE                  __attribute__((section(".slow_code")))
 #else
