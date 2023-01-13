@@ -325,7 +325,9 @@ const flashGeometry_t *flashGetGeometry(void)
 
 void flashDisableDma(void)
 {
-    flashDevice.io.handle.dev->useDMA = false;
+    if (flashDevice.io.mode == FLASHIO_SPI) {
+        flashDevice.io.handle.dev->useDMA = false;
+    }
 }
 
 
