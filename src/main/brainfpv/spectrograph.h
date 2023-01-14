@@ -9,8 +9,8 @@ enum SpecCommand {
     SPEC_COMMAND_SWAXIS,
 };
 
-void spectrographInit();
-void spectrographMain();
+void spectrographInit(void);
+void spectrographMain(void);
 void spectrographOSD(enum SpecCommand command);
 #endif /* SPECTROGRAPH_H */
 

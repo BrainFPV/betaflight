@@ -58,7 +58,7 @@ struct video_type_cfg {
 };
 
 
-void Video_Init();
+void Video_Init(void);
 bool VideoIsInitialized(void);
 void Video_SetLevels(uint8_t, uint8_t, uint8_t, uint8_t);
 void Video_SetXOffset(int8_t);

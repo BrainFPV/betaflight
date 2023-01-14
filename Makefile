@@ -117,7 +117,7 @@ FC_VER_PATCH := $(shell grep " FC_VERSION_PATCH" src/main/build/version.h | awk 
 
 GIT_TAG_EXACT := $(shell git describe --exact-match HEAD 2>&1)
 ifneq (,$(findstring fatal,$(GIT_TAG_EXACT)))
-    FC_VER := $(FC_VER_MAJOR).$(FC_VER_MINOR).$(FC_VER_PATCH)
+FC_VER := $(FC_VER_MAJOR).$(FC_VER_MINOR).$(FC_VER_PATCH)
 else
     FC_VER := $(GIT_TAG_EXACT)
 endif
@@ -133,7 +133,6 @@ LD_FLAGS        :=
 EXTRA_LD_FLAGS  :=
 
 #
-
 # Default Tool options - can be overridden in {mcu}.mk files.
 #
 ifeq ($(DEBUG),GDB)
@@ -196,6 +195,7 @@ INCLUDE_DIRS    := $(INCLUDE_DIRS) \
 VPATH           := $(VPATH):$(TARGET_DIR)
 
 include $(ROOT)/make/source.mk
+
 ###############################################################################
 # Things that might need changing to use different tools
 #
@@ -253,7 +253,6 @@ CFLAGS     += $(ARCH_FLAGS) \
               -D'__TARGET__="$(TARGET)"' \
               -D'__REVISION__="$(REVISION)"' \
               -D'__GIT_TAG__="$(GIT_TAG)"' \
-              -save-temps=obj \
               -pipe \
               -MMD -MP \
               $(EXTRA_FLAGS)
@@ -298,19 +297,20 @@ TARGET_BASENAME = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET)
 #
 # Things we will build
 #
-TARGET_BRAIN_BIN = $(TARGET_BASENAME)_brainfpv.bin
-
 TARGET_BIN      = $(TARGET_BASENAME).bin
 TARGET_HEX      = $(TARGET_BASENAME).hex
 TARGET_HEX_REV  = $(TARGET_BASENAME)_$(REVISION).hex
 TARGET_DFU      = $(TARGET_BASENAME).dfu
 TARGET_ZIP      = $(TARGET_BASENAME).zip
+TARGET_ELF      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET).elf
 TARGET_EXST_ELF = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET)_EXST.elf
 TARGET_UNPATCHED_BIN = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET)_UNPATCHED.bin
 TARGET_LST      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET).lst
 TARGET_OBJS     = $(addsuffix .o,$(addprefix $(OBJECT_DIR)/$(TARGET)/,$(basename $(SRC))))
 TARGET_DEPS     = $(addsuffix .d,$(addprefix $(OBJECT_DIR)/$(TARGET)/,$(basename $(SRC))))
 TARGET_MAP      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET).map
+
+TARGET_BRAIN_BIN = $(TARGET_BASENAME)_brainfpv.bin
 
 TARGET_EXST_HASH_SECTION_FILE = $(OBJECT_DIR)/$(TARGET)/exst_hash_section.bin
 
@@ -329,25 +329,6 @@ $(OBJECT_DIR)/$(TARGET)/build/version.o : $(SRC)
 # List of buildable ELF files and their object dependencies.
 # It would be nice to compute these lists, but that seems to be just beyond make.
 
-## tlfw file for testing
-$(TARGET_TLFW): $(TARGET_BIN) $(OBJECT_DIR)/$(TARGET)_firmwareinfo.bin
-	cat $(TARGET_BIN) $(OBJECT_DIR)/$(TARGET)_firmwareinfo.bin > $(TARGET_TLFW)
-
-
-$(OBJECT_DIR)/$(TARGET)_firmwareinfo.bin: $(OBJECT_DIR)/$(TARGET)_firmwareinfo.o
-	$(OBJCOPY) -O binary $< $@
-
-$(OBJECT_DIR)/$(TARGET)_firmwareinfo.o: $(OBJECT_DIR)/$(TARGET)_firmwareinfo.c
-	@mkdir -p $(dir $@)
-	@echo %% $(notdir $<)
-	@$(CROSS_CC) -c -o  $@  $< $(addprefix -I,$(INCLUDE_DIRS))
-
-$(OBJECT_DIR)/$(TARGET)_firmwareinfo.c: $(TARGET_DIR)/firmwareinfotemplate.ct
-	python2 $(TARGET_DIR)/version-info.py \
-		--path=$(ROOT) \
-		--template=$^ \
-		--outfile=$@ 
-
 $(TARGET_LST): $(TARGET_ELF)
 	$(V0) $(OBJDUMP) -S --disassemble $< > $@
 
@@ -355,6 +336,10 @@ ifeq ($(EXST),no)
 $(TARGET_BIN): $(TARGET_ELF)
 	@echo "Creating BIN $(TARGET_BIN)" "$(STDOUT)"
 	$(V1) $(OBJCOPY) -O binary $< $@
+
+ifeq ($(START_ADDRESS),)
+START_ADDRESS = 0x8000000
+endif
 
 $(TARGET_HEX): $(TARGET_ELF)
 	@echo "Creating HEX $(TARGET_HEX)" "$(STDOUT)"

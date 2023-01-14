@@ -1648,7 +1648,7 @@ bool brainFPVOsdUpdate(timeUs_t currentTimeUs)
 
     osdProcessStats1(currentTimeUs);
     osdProcessStats2(currentTimeUs);
-    osdProcessStats3(currentTimeUs);
+    osdProcessStats3();
 
     showVisualBeeper = false;
     osdSyncBlink();

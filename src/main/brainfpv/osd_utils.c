@@ -51,7 +51,7 @@ extern struct FontEntry* fonts[NUM_FONTS];
 extern uint8_t *draw_buffer;
 extern uint8_t *disp_buffer;
 
-void clearGraphics()
+void clearGraphics(void)
 {
 	memset((uint8_t *)draw_buffer, 0, BUFFER_HEIGHT * BUFFER_WIDTH);
 }

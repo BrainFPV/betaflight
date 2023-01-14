@@ -463,7 +463,7 @@ void brainFpvOsdWelcome(void)
 #endif
 }
 
-static int32_t getAltitude(void)
+static int32_t getOsdAltitude(void)
 {
     int32_t alt = getEstimatedAltitudeCm();
     switch (osdConfig()->units) {
@@ -489,10 +489,10 @@ static float getVelocity(void)
 }
 
 
-void osdUpdateLocal()
+void osdUpdateLocal(void)
 {
     if (bfOsdConfig()->altitude_scale && (sensors(SENSOR_BARO) || sensors(SENSOR_GPS))) {
-        float altitude = getAltitude() / 100.f;
+        float altitude = getOsdAltitude() / 100.f;
         osd_draw_vertical_scale(altitude, 100, 1, GRAPHICS_RIGHT - 20, GRAPHICS_Y_MIDDLE, 120, 10, 20, 5, 8, 11, 0);
     }
 
@@ -848,7 +848,7 @@ const point_t HOME_ARROW[] = {
 
 
 #define MAP_MAX_DIST_PX 70
-void draw_map_uav_center()
+void draw_map_uav_center(void)
 {
     uint16_t x, y;
 

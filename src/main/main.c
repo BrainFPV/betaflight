@@ -168,7 +168,7 @@ uint8_t safe_boot = 0;
 #define CONTROL_USE_PSP                     2
 #define CONTROL_FPCA                        4
 #define CRT0_CONTROL_INIT (CONTROL_USE_PSP | CONTROL_MODE_PRIVILEGED | CONTROL_FPCA)
-int main()
+int main(void)
 {
     // Fill process stack
     memset((void*)&__process_stack_base__, CH_DBG_STACK_FILL_VALUE, &__process_stack_end__ - &__process_stack_base__ - 4);

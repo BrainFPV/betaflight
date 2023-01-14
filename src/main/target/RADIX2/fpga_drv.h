@@ -40,7 +40,7 @@
 
 
 int32_t BRAINFPVFPGA_Init(bool load_config);
-uint8_t BRAINFPVFPGA_GetHWRevision();
+uint8_t BRAINFPVFPGA_GetHWRevision(void);
 int32_t BRAINFPVFPGA_SerialRxInvert(bool invert);
 void BRAINFPVFPGA_SetBwLevels(uint8_t black, uint8_t white);
 int32_t BRAINFPVFPGA_SetSyncThreshold(uint8_t threshold);

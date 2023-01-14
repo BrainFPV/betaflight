@@ -1647,7 +1647,7 @@ void brainFPVRenderCraftNameWarningsDji(char * buffer, int bufferLength)
 
     renderOsdWarning(buffer, &blinking, &displayAttr);
 
-    if (displayAttr == DISPLAYPORT_ATTR_NONE) {
+    if ((displayAttr == DISPLAYPORT_ATTR_NORMAL) || (displayAttr == DISPLAYPORT_ATTR_INFO)) {
         // No warnings: Only show info
         showInfo = true;
         if (currentTimeUs - lastSwitchTimeUs > WARNING_INFO_TOGGLE_TIME_US) {
@@ -1697,7 +1697,7 @@ void brainFPVRenderCraftNameWarningsDji(char * buffer, int bufferLength)
 
         if (numActiveElements == 0) {
             // No info elements selected: Show NAME
-            strncpy(buffer, pilotConfig()->name, bufferLength);
+            strncpy(buffer, pilotConfigMutable()->craftName, bufferLength);
             return;
         }
 

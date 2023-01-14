@@ -192,7 +192,7 @@ binary_semaphore_t spectrographDataReadySemaphore;
 
 static arm_rfft_fast_instance_f32 fft_inst;
 
-void spectrographInit()
+void spectrographInit(void)
 {
     arm_rfft_fast_init_f32(&fft_inst, SPEC_FFT_LENGTH);
     chMtxObjectInit(&fftOutputMtx);
@@ -203,7 +203,7 @@ void spectrographInit()
 }
 
 
-void spectrographMain()
+void spectrographMain(void)
 {
     float max_val;
     float old_max;

@@ -208,7 +208,7 @@ typedef enum {
 void set_text_color(OSDOSD_COLOR_t main_color, OSDOSD_COLOR_t outline_color);
 #endif
 
-void clearGraphics();
+void clearGraphics(void);
 void draw_image(uint16_t x, uint16_t y, const struct Image * image);
 
 void draw_pixel(int x, int y, OSDOSD_COLOR_t color);

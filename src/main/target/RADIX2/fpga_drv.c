@@ -249,7 +249,7 @@ static int32_t BRAINFPVFPGA_WriteRegDirect(enum re1fpga_register reg, uint8_t da
 /**
  * @brief Get the Hardware
  */
-uint8_t BRAINFPVFPGA_GetHWRevision()
+uint8_t BRAINFPVFPGA_GetHWRevision(void)
 {
     return shadow_reg.reg_hwrev;
 }
