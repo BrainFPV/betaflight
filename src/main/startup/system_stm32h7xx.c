@@ -674,12 +674,18 @@ void SystemClock_Config(void)
 
     RCC_PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_SDMMC;
 
-#  if (HSE_VALUE != 8000000)
-#    error Unsupported external oscillator speed.  The calculations below are based on 8Mhz resonators
-// if you are seeing this, then calculate the PLL2 settings for your resonator and add support as required.
-#  else
-#    if defined(STM32H743xx) || defined(STM32H750xx) || defined(STM32H723xx) || defined(STM32H7A3xx) || defined(STM32H7A3xxQ) || defined(STM32H725xx)
-    RCC_PeriphClkInit.PLL2.PLL2M = 5;
+#if (HSE_VALUE == 8000000)
+#define HSE_MULT 1
+#else
+#if (HSE_VALUE % 8000000 == 0)
+#define HSE_MULT (HSE_VALUE / 8000000)
+#else
+#error Unsupported external oscillator speed.  The calculations below are based on resnators that are multiples of 8 MHz.
+#endif
+#endif
+
+# if defined(STM32H743xx) || defined(STM32H750xx) || defined(STM32H723xx) || defined(STM32H7A3xx) || defined(STM32H7A3xxQ) || defined(STM32H725xx)
+    RCC_PeriphClkInit.PLL2.PLL2M = 5 * HSE_MULT;
     RCC_PeriphClkInit.PLL2.PLL2N = 500; // 8Mhz (Oscillator Frequency) / 5 (PLL2M) = 1.6 * 500 (PLL2N) = 800Mhz.
     RCC_PeriphClkInit.PLL2.PLL2VCOSEL = RCC_PLL2VCOWIDE; // Wide VCO range:192 to 836 MHz
     RCC_PeriphClkInit.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_0; // PLL2 input between 1 and 2Mhz (1.6)
@@ -689,7 +695,7 @@ void SystemClock_Config(void)
     RCC_PeriphClkInit.PLL2.PLL2Q = 3; // 800Mhz / 3 = 266Mhz // 133Mhz can be derived from this for for QSPI if flash chip supports the speed.
     RCC_PeriphClkInit.PLL2.PLL2R = 4; // 800Mhz / 4 = 200Mhz // HAL LIBS REQUIRE 200MHZ SDMMC CLOCK, see HAL_SD_ConfigWideBusOperation, SDMMC_HSpeed_CLK_DIV, SDMMC_NSpeed_CLK_DIV
 #    elif defined(STM32H730xx)
-    RCC_PeriphClkInit.PLL2.PLL2M = 8;
+    RCC_PeriphClkInit.PLL2.PLL2M = 8 * HSE_MULT;
     RCC_PeriphClkInit.PLL2.PLL2N = 400; // 8Mhz (Oscillator Frequency) / 8 (PLL2M) = 1.0 * 400 (PLL2N) = 400Mhz.
     RCC_PeriphClkInit.PLL2.PLL2VCOSEL = RCC_PLL2VCOMEDIUM; // Medium VCO range:150 to 420 MHz
     RCC_PeriphClkInit.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_0; // PLL2 input between 1 and 2Mhz (1.0)
@@ -704,7 +710,6 @@ void SystemClock_Config(void)
     RCC_PeriphClkInit.SdmmcClockSelection = RCC_SDMMCCLKSOURCE_PLL2;
     HAL_RCCEx_PeriphCLKConfig(&RCC_PeriphClkInit);
 #  endif
-#endif
 
     RCC_PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
     RCC_PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_CLKP;
