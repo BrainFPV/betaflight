@@ -241,7 +241,7 @@ extern uint8_t _dmaram_end__;
 #define USE_IMU_CALC
 
 // all the settings for classic build
-#if !defined(CLOUD_BUILD) && !defined(SITL)
+#if !defined(CLOUD_BUILD) && !defined(SITL) && !defined(BRAINFPV)
 
 #define USE_MAG
 
@@ -405,6 +405,11 @@ extern uint8_t _dmaram_end__;
 #endif
 
 #endif // !defined(CLOUD_BUILD)
+
+#if defined(BRAINFPV)
+#include "brainfpv/brainfpv_features.h"
+#endif
+
 
 #if !defined(LED_MAX_STRIP_LENGTH)
 #ifdef USE_LEDSTRIP_64

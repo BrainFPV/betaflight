@@ -447,6 +447,10 @@ ifneq ($(filter VCP,$(FEATURES)),)
 SRC += $(VCP_SRC)
 endif
 
+ifneq ($(filter BRAINFPV,$(FEATURES)),)
+DEVICE_FLAGS += -DBRAINFPV
+endif
+
 ifneq ($(filter BRAINFPV_BL,$(FEATURES)),)
 DEVICE_FLAGS += -DBRAINFPV_BL
 endif
