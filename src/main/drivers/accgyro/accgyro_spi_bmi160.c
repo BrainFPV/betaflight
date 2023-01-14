@@ -102,6 +102,10 @@ bool gyro_sample_processed = false;
 #define BMI160_VAL_GYRO_CONF_BWP_OSR4 0x00
 #define BMI160_VAL_GYRO_CONF_BWP_OSR2 0x10
 #define BMI160_VAL_GYRO_CONF_BWP_NORM 0x20
+#define BMI160_VAL_ACC_CONF_BWP_OSR4 0x00
+#define BMI160_VAL_ACC_CONF_BWP_OSR2 0x10
+#define BMI160_VAL_ACC_CONF_BWP_NORM 0x20
+#define BMI160_VAL_ACC_CONF_US_HP 0x00
 
 // Need to see at least this many interrupts during initialisation to confirm EXTI connectivity
 #define GYRO_EXTI_DETECT_THRESHOLD 1000
@@ -131,8 +135,6 @@ uint8_t bmi160Detect(const extDevice_t *dev)
     }
 
     BMI160Detected = true;
-
-    spiSetClkDivisor(dev, spiCalculateDivider(BMI160_MAX_SPI_CLK_HZ));
 
     return BMI_160_SPI;
 }
@@ -166,7 +168,7 @@ static void BMI160_Init(const extDevice_t *dev)
     BMI160InitDone = true;
 }
 
-static uint8_t getBmiOsrMode()
+static uint8_t getBmiOsrMode(void)
 {
 
 #if defined(BRAINFPV)
@@ -182,10 +184,13 @@ static uint8_t getBmiOsrMode()
             return BMI160_VAL_GYRO_CONF_BWP_OSR2;
         case GYRO_HARDWARE_LPF_OPTION_2:
             return BMI160_VAL_GYRO_CONF_BWP_NORM;
+#ifdef USE_GYRO_DLPF_EXPERIMENTAL
         case GYRO_HARDWARE_LPF_EXPERIMENTAL:
             return BMI160_VAL_GYRO_CONF_BWP_NORM;
+#endif
+        default:
+            return BMI160_VAL_GYRO_CONF_BWP_OSR4;
     }
-    return 0;
 }
 
 /**
@@ -207,8 +212,8 @@ static int32_t BMI160_Config(const extDevice_t *dev)
     }
 
     // Set odr and ranges
-    // Set acc_us = 0 acc_bwp = 0b010 so only the first filter stage is used
-    spiWriteReg(dev, BMI160_REG_ACC_CONF, 0x20 | BMI160_ODR_800_Hz);
+    // Set acc_us = 0 & acc_bwp = 0b001 for high performance and OSR2 mode
+    spiWriteReg(dev, BMI160_REG_ACC_CONF, BMI160_VAL_ACC_CONF_US_HP | BMI160_VAL_ACC_CONF_BWP_OSR2 | BMI160_ODR_800_Hz);
     delay(1);
 
     spiWriteReg(dev, BMI160_REG_GYR_CONF, getBmiOsrMode() | BMI160_ODR_3200_Hz);
@@ -242,7 +247,7 @@ static int32_t BMI160_Config(const extDevice_t *dev)
 static int32_t BMI160_do_foc(const extDevice_t *dev)
 {
     // assume sensor is mounted on top
-    uint8_t val = 0x7D;;
+    uint8_t val = 0x7D;
     spiWriteReg(dev, BMI160_REG_FOC_CONF, val);
 
     // Start FOC
@@ -283,7 +288,6 @@ static int32_t BMI160_do_foc(const extDevice_t *dev)
 
 extiCallbackRec_t bmi160IntCallbackRec;
 
-#ifdef USE_GYRO_EXTI
 // Called in ISR context
 // Gyro read has just completed
 busStatus_e bmi160Intcallback(uint32_t arg)
@@ -310,6 +314,8 @@ busStatus_e bmi160Intcallback(uint32_t arg)
 void bmi160ExtiHandler(extiCallbackRec_t *cb)
 {
     gyroDev_t *gyro = container_of(cb, gyroDev_t, exti);
+    extDevice_t *dev = &gyro->dev;
+
     // Ideally we'd use a timer to capture such information, but unfortunately the port used for EXTI interrupt does
     // not have an associated timer
     uint32_t nowCycles = getCycleCounter();
@@ -317,7 +323,7 @@ void bmi160ExtiHandler(extiCallbackRec_t *cb)
     gyro->gyroLastEXTI = nowCycles;
 
     if (gyro->gyroModeSPI == GYRO_EXTI_INT_DMA) {
-        spiSequence(&gyro->dev, gyro->segments);
+        spiSequence(dev, gyro->segments);
     }
 
     gyro->detectedEXTI++;
@@ -337,35 +343,30 @@ static void bmi160IntExtiInit(gyroDev_t *gyro)
     EXTIConfig(mpuIntIO, &gyro->exti, NVIC_PRIO_MPU_INT_EXTI, IOCFG_IN_FLOATING, BETAFLIGHT_EXTI_TRIGGER_RISING);
     EXTIEnable(mpuIntIO);
 }
-#else
-void bmi160ExtiHandler(extiCallbackRec_t *cb)
-{
-    gyroDev_t *gyro = container_of(cb, gyroDev_t, exti);
-    gyro->dataReady = true;
-}
-#endif
 
 static bool bmi160AccRead(accDev_t *acc)
 {
+    extDevice_t *dev = &acc->gyro->dev;
+
     switch (acc->gyro->gyroModeSPI) {
     case GYRO_EXTI_INT:
     case GYRO_EXTI_NO_INT:
     {
-        acc->gyro->dev.txBuf[0] = BMI160_REG_ACC_DATA_X_LSB | 0x80;
+        dev->txBuf[0] = BMI160_REG_ACC_DATA_X_LSB | 0x80;
 
         busSegment_t segments[] = {
                 {.u.buffers = {NULL, NULL}, 7, true, NULL},
                 {.u.link = {NULL, NULL}, 0, true, NULL},
         };
-        segments[0].u.buffers.txData = &acc->gyro->dev.txBuf[1];
-        segments[0].u.buffers.rxData = &acc->gyro->dev.rxBuf[1];
+        segments[0].u.buffers.txData = &dev->txBuf[1];
+        segments[0].u.buffers.rxData = &dev->rxBuf[1];
 
         spiSequence(&acc->gyro->dev, &segments[0]);
 
         // Wait for completion
         spiWait(&acc->gyro->dev);
 
-        uint16_t *accData = (uint16_t *)acc->gyro->dev.rxBuf;
+        int16_t *accData = (int16_t *)dev->rxBuf;
         acc->ADCRaw[X] = accData[1];
         acc->ADCRaw[Y] = accData[2];
         acc->ADCRaw[Z] = accData[3];
@@ -378,7 +379,7 @@ static bool bmi160AccRead(accDev_t *acc)
         // up an old value.
 
         // This data was read from the gyro, which is the same SPI device as the acc
-        uint16_t *accData = (uint16_t *)acc->gyro->dev.rxBuf;
+        int16_t *accData = (int16_t *)dev->rxBuf;
         acc->ADCRaw[X] = accData[4];
         acc->ADCRaw[Y] = accData[5];
         acc->ADCRaw[Z] = accData[6];
@@ -396,35 +397,34 @@ static bool bmi160AccRead(accDev_t *acc)
 
 static bool bmi160GyroRead(gyroDev_t *gyro)
 {
-    uint16_t *gyroData = (uint16_t *)gyro->dev.rxBuf;
+    extDevice_t *dev = &gyro->dev;
+    int16_t *gyroData = (int16_t *)dev->rxBuf;
     switch (gyro->gyroModeSPI) {
     case GYRO_EXTI_INIT:
     {
         // Initialise the tx buffer to all 0x00
-        memset(gyro->dev.txBuf, 0x00, 14);
-#ifdef USE_GYRO_EXTI
+        memset(dev->txBuf, 0x00, 14);
+
         // Check that minimum number of interrupts have been detected
 
         // We need some offset from the gyro interrupts to ensure sampling after the interrupt
         gyro->gyroDmaMaxDuration = 5;
         // Using DMA for gyro access upsets the scheduler on the F4
         if (gyro->detectedEXTI > GYRO_EXTI_DETECT_THRESHOLD) {
-            if (spiUseDMA(&gyro->dev)) {
-                gyro->dev.callbackArg = (uint32_t)gyro;
-                gyro->dev.txBuf[1] = BMI160_REG_GYR_DATA_X_LSB | 0x80;
-                gyro->segments[0].len = 14;
+            if (spiUseDMA(dev)) {
+                dev->callbackArg = (uint32_t)gyro;
+                dev->txBuf[1] = BMI160_REG_GYR_DATA_X_LSB | 0x80;
+                gyro->segments[0].len = 13;
                 gyro->segments[0].callback = bmi160Intcallback;
-                gyro->segments[0].u.buffers.txData = &gyro->dev.txBuf[1];
-                gyro->segments[0].u.buffers.rxData = &gyro->dev.rxBuf[1];
+                gyro->segments[0].u.buffers.txData = &dev->txBuf[1];
+                gyro->segments[0].u.buffers.rxData = &dev->rxBuf[1];
                 gyro->segments[0].negateCS = true;
                 gyro->gyroModeSPI = GYRO_EXTI_INT_DMA;
             } else {
                 // Interrupts are present, but no DMA
                 gyro->gyroModeSPI = GYRO_EXTI_INT;
             }
-        } else
-#endif
-        {
+        } else {
             gyro->gyroModeSPI = GYRO_EXTI_NO_INT;
         }
         break;
@@ -433,19 +433,19 @@ static bool bmi160GyroRead(gyroDev_t *gyro)
     case GYRO_EXTI_INT:
     case GYRO_EXTI_NO_INT:
     {
-        gyro->dev.txBuf[1] = BMI160_REG_GYR_DATA_X_LSB | 0x80;
+        dev->txBuf[1] = BMI160_REG_GYR_DATA_X_LSB | 0x80;
 
         busSegment_t segments[] = {
                 {.u.buffers = {NULL, NULL}, 7, true, NULL},
                 {.u.link = {NULL, NULL}, 0, true, NULL},
         };
-        segments[0].u.buffers.txData = &gyro->dev.txBuf[1];
-        segments[0].u.buffers.rxData = &gyro->dev.rxBuf[1];
+        segments[0].u.buffers.txData = &dev->txBuf[1];
+        segments[0].u.buffers.rxData = &dev->rxBuf[1];
 
-        spiSequence(&gyro->dev, &segments[0]);
+        spiSequence(dev, &segments[0]);
 
         // Wait for completion
-        spiWait(&gyro->dev);
+        spiWait(dev);
 
         // Fall through
         FALLTHROUGH;
@@ -476,10 +476,10 @@ static bool bmi160GyroRead(gyroDev_t *gyro)
 
 void bmi160SpiGyroInit(gyroDev_t *gyro)
 {
-    BMI160_Init(&gyro->dev);
-#if defined(USE_GYRO_EXTI)
+    extDevice_t *dev = &gyro->dev;
+
+    BMI160_Init(dev);
     bmi160IntExtiInit(gyro);
-#endif
 
 }
 

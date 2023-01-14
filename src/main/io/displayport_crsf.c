@@ -85,7 +85,7 @@ static int crsfWriteString(displayPort_t *displayPort, uint8_t col, uint8_t row,
     if (row >= crsfScreen.rows || col >= crsfScreen.cols) {
         return 0;
     }
-    const size_t truncLen = MIN((int)strlen(s), crsfScreen.cols-col);  // truncate at colCount
+    const size_t truncLen = MIN(strlen(s), (size_t)(crsfScreen.cols - col));  // truncate at colCount
     char *rowStart = &crsfScreen.buffer[row * crsfScreen.cols + col];
     crsfScreen.updated |= memcmp(rowStart, s, truncLen);
     if (crsfScreen.updated) {
@@ -200,10 +200,12 @@ bool crsfDisplayPortIsReady(void)
     return (bool)(delayExpired && cmsReady);
 }
 
-static displayPort_t *displayPortCrsfInit()
+static displayPort_t *displayPortCrsfInit(void)
 {
     crsfDisplayPortSetDimensions(CRSF_DISPLAY_PORT_ROWS_MAX, CRSF_DISPLAY_PORT_COLS_MAX);
     displayInit(&crsfDisplayPort, &crsfDisplayPortVTable, DISPLAYPORT_DEVICE_TYPE_CRSF);
+
+    crsfRedraw(&crsfDisplayPort);
 
     return &crsfDisplayPort;
 }

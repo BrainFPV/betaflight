@@ -18,33 +18,48 @@
 #include <stdint.h>
 
 extern "C" {
+
     #include "blackbox/blackbox.h"
+
     #include "build/debug.h"
+
+    #include "common/filter.h"
     #include "common/maths.h"
-    #include "config/feature.h"
-    #include "pg/motor.h"
-    #include "pg/pg.h"
-    #include "pg/pg_ids.h"
-    #include "pg/rx.h"
+
     #include "config/config.h"
+    #include "config/feature.h"
+
     #include "fc/controlrate_profile.h"
     #include "fc/core.h"
     #include "fc/rc_controls.h"
     #include "fc/rc_modes.h"
     #include "fc/runtime_config.h"
+
     #include "flight/failsafe.h"
+    #include "flight/gps_rescue.h"
     #include "flight/imu.h"
     #include "flight/mixer.h"
     #include "flight/pid.h"
+    #include "flight/position.h"
     #include "flight/servos.h"
+
     #include "io/beeper.h"
     #include "io/gps.h"
+
+    #include "pg/gps_rescue.h"
+    #include "pg/motor.h"
+    #include "pg/pg.h"
+    #include "pg/pg_ids.h"
+    #include "pg/rx.h"
+
     #include "rx/rx.h"
+
     #include "scheduler/scheduler.h"
+
     #include "sensors/acceleration.h"
     #include "sensors/gyro.h"
+
     #include "telemetry/telemetry.h"
-    #include "flight/gps_rescue.h"
 
     PG_REGISTER(accelerometerConfig_t, accelerometerConfig, PG_ACCELEROMETER_CONFIG, 0);
     PG_REGISTER(blackboxConfig_t, blackboxConfig, PG_BLACKBOX_CONFIG, 0);
@@ -57,6 +72,10 @@ extern "C" {
     PG_REGISTER(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 0);
     PG_REGISTER(failsafeConfig_t, failsafeConfig, PG_FAILSAFE_CONFIG, 0);
     PG_REGISTER(motorConfig_t, motorConfig, PG_MOTOR_CONFIG, 0);
+    PG_REGISTER(imuConfig_t, imuConfig, PG_IMU_CONFIG, 0);
+    PG_REGISTER(gpsConfig_t, gpsConfig, PG_GPS_CONFIG, 0);
+    PG_REGISTER(gpsRescueConfig_t, gpsRescueConfig, PG_GPS_RESCUE, 0);
+    PG_REGISTER(positionConfig_t, positionConfig, PG_POSITION, 0);
 
     float rcCommand[4];
     float rcData[MAX_SUPPORTED_RC_CHANNEL_COUNT];
@@ -72,11 +91,14 @@ extern "C" {
     bool cmsInMenu = false;
     float axisPID_P[3], axisPID_I[3], axisPID_D[3], axisPIDSum[3];
     rxRuntimeState_t rxRuntimeState = {};
-    uint16_t GPS_distanceToHome = 0;
+    uint32_t GPS_distanceToHomeCm = 0;
     int16_t GPS_directionToHome = 0;
     acc_t acc = {};
     bool mockIsUpright = false;
     uint8_t activePidLoopDenom = 1;
+
+    float gpsGetSampleRateHz(void) { return 10.0f; }
+    void pt2FilterUpdateCutoff(pt2Filter_t *filter, float k) { filter->k = k; }
 }
 
 uint32_t simulationFeatureFlags = 0;
@@ -1007,7 +1029,7 @@ TEST(ArmingPreventionTest, Paralyze)
     // expect
     EXPECT_TRUE(IS_RC_MODE_ACTIVE(BOXVTXPITMODE));
     EXPECT_TRUE(IS_RC_MODE_ACTIVE(BOXBEEPERON));
-    
+
     // given
     // try exiting paralyze mode and ensure arming and pit mode are still disabled
     rcData[AUX2] = 1000;
@@ -1041,7 +1063,7 @@ extern "C" {
     void saveConfigAndNotify(void) {}
     void blackboxFinish(void) {}
     bool accIsCalibrationComplete(void) { return true; }
-    bool baroIsCalibrationComplete(void) { return true; }
+    bool baroIsCalibrated(void) { return true; }
     bool gyroIsCalibrationComplete(void) { return gyroCalibDone; }
     void gyroStartCalibration(bool) {}
     bool isFirstArmingGyroCalibrationRunning(void) { return false; }
@@ -1059,6 +1081,8 @@ extern "C" {
     void failsafeStartMonitoring(void) {}
     void failsafeUpdateState(void) {}
     bool failsafeIsActive(void) { return false; }
+    bool failsafeIsReceivingRxData(void) { return false; }
+    bool rxAreFlightChannelsValid(void) { return false; }
     void pidResetIterm(void) {}
     void updateAdjustmentStates(void) {}
     void processRcAdjustments(controlRateConfig_t *) {}
@@ -1092,8 +1116,7 @@ extern "C" {
     float scaleRangef(float, float, float, float, float) { return 0.0f; }
     bool crashRecoveryModeActive(void) { return false; }
     int32_t getEstimatedAltitudeCm(void) { return 0; }
-    bool gpsIsHealthy() { return false; }
-    bool isAltitudeOffset(void) { return false; }
+    bool gpsIsHealthy(void) { return false; }
     float getCosTiltAngle(void) { return 0.0f; }
     void pidSetItermReset(bool) {}
     void applyAccelerometerTrimsDelta(rollAndPitchTrims_t*) {}
@@ -1109,4 +1132,23 @@ extern "C" {
     bool isMotorProtocolEnabled(void) { return true; }
     void pinioBoxTaskControl(void) {}
     void schedulerSetNextStateTime(timeDelta_t) {}
+    float getAltitude(void) { return 3000.0f; }
+    float pt1FilterGain(float, float) { return 0.5f; }
+    float pt2FilterGain(float, float)  { return 0.1f; }
+    float pt3FilterGain(float, float)  { return 0.1f; }
+    void pt2FilterInit(pt2Filter_t *throttleDLpf, float) {
+        UNUSED(throttleDLpf);
+    }
+    float pt2FilterApply(pt2Filter_t *throttleDLpf, float) {
+        UNUSED(throttleDLpf);
+        return 0.0f;
+    }
+    void pt3FilterInit(pt3Filter_t *pitchLpf, float) {
+        UNUSED(pitchLpf);
+    }
+    float pt3FilterApply(pt3Filter_t *pitchLpf, float) {
+        UNUSED(pitchLpf);
+        return 0.0f;
+    }
+
 }

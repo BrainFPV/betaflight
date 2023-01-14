@@ -33,7 +33,7 @@
 
 // NULL filter
 
-FAST_CODE float nullFilterApply(filter_t *filter, float input)
+float nullFilterApply(filter_t *filter, float input)
 {
     UNUSED(filter);
     return input;
@@ -308,4 +308,26 @@ void simpleLPFilterInit(simpleLowpassFilter_t *filter, int32_t beta, int32_t fpS
     filter->fp = 0;
     filter->beta = beta;
     filter->fpShift = fpShift;
+}
+
+void meanAccumulatorAdd(meanAccumulator_t *filter, const int8_t newVal)
+{
+    filter->accumulator += newVal;
+    filter->count++;
+}
+
+int8_t meanAccumulatorCalc(meanAccumulator_t *filter, const int8_t defaultValue)
+{
+    if (filter->count) {
+        int8_t retVal = filter->accumulator / filter->count;
+        meanAccumulatorInit(filter);
+        return retVal;
+    }
+    return defaultValue;
+}
+
+void meanAccumulatorInit(meanAccumulator_t *filter)
+{
+    filter->accumulator = 0;
+    filter->count = 0;
 }

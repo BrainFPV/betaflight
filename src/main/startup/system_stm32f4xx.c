@@ -813,8 +813,6 @@ void SetSysClock(void)
 
     /* Wait till the main PLL is used as system clock source */
     while ((RCC->CFGR & (uint32_t)RCC_CFGR_SWS ) != RCC_CFGR_SWS_PLL);
-    {
-    }
 
 #if defined(STM32F446xx)
 // Always use PLLSAI to derive USB 48MHz clock.

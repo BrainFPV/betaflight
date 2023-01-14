@@ -63,7 +63,8 @@ static int callCounts[CALL_COUNT_ITEM_COUNT];
 
 #define CALL_COUNTER(item) (callCounts[item])
 
-void resetCallCounters(void) {
+void resetCallCounters(void)
+{
     memset(&callCounts, 0, sizeof(callCounts));
 }
 
@@ -207,7 +208,7 @@ TEST(FlightFailsafeTest, TestFailsafeDetectsRxLossAndStartsLanding)
     EXPECT_FALSE(isArmingDisabled());
 
     // simulate an Rx loss for the stage 1 duration
-    sysTickUptime += (failsafeConfig()->failsafe_delay * MILLIS_PER_TENTH_SECOND);;
+    sysTickUptime += (failsafeConfig()->failsafe_delay * MILLIS_PER_TENTH_SECOND);
     failsafeOnValidDataFailed();
     failsafeUpdateState();
 
@@ -342,7 +343,7 @@ TEST(FlightFailsafeTest, TestFailsafeDetectsRxLossAndJustDisarms)
     EXPECT_FALSE(isArmingDisabled());
 
     // simulate an Rx loss for the stage 1 duration
-    sysTickUptime += (failsafeConfig()->failsafe_delay * MILLIS_PER_TENTH_SECOND);;
+    sysTickUptime += (failsafeConfig()->failsafe_delay * MILLIS_PER_TENTH_SECOND);
     failsafeOnValidDataFailed();
     failsafeUpdateState();
 
@@ -513,46 +514,17 @@ TEST(FlightFailsafeTest, TestFailsafeSwitchModeStage1OrStage2Drop)
     // deactivate the failsafe switch
     deactivateBoxFailsafe();
 
-    // receivingRxData is immediately true
-    // we go directly to failsafe monitoring mode, via Landing
-    // because the switch also forces rxFlightChannelsValid false, emulating real failsafe
-    // we have two delays to deal with before we can re-arm
-
     EXPECT_TRUE(failsafeIsActive());
     EXPECT_TRUE(isArmingDisabled());
     EXPECT_EQ(1, CALL_COUNTER(COUNTER_MW_DISARM));
     EXPECT_EQ(FAILSAFE_RX_LOSS_MONITORING, failsafePhase());
 
-    // handle the first delay in rxDataRecoveryPeriod
-    sysTickUptime += PERIOD_RXDATA_RECOVERY;
-    failsafeOnValidDataReceived();
-
-    // when 
-    failsafeUpdateState();
-
-    // we should still be in failsafe monitoring mode
-    EXPECT_TRUE(failsafeIsActive());
-    EXPECT_TRUE(isArmingDisabled());
-    EXPECT_EQ(1, CALL_COUNTER(COUNTER_MW_DISARM));
-    EXPECT_EQ(FAILSAFE_RX_LOSS_MONITORING, failsafePhase());
-
-    // handle the second delay
-    sysTickUptime += PERIOD_RXDATA_RECOVERY;
-    failsafeOnValidDataReceived();
-
-    // when 
-    failsafeUpdateState();
-
-    // we should still be in failsafe monitoring mode
-    EXPECT_TRUE(failsafeIsActive());
-    EXPECT_TRUE(isArmingDisabled());
-    EXPECT_EQ(1, CALL_COUNTER(COUNTER_MW_DISARM));
-    EXPECT_EQ(FAILSAFE_RX_LOSS_MONITORING, failsafePhase());
-
-    // one tick later
+    // by next evaluation we should be out of failsafe
     sysTickUptime ++;
+    // receivingRxData is immediately true because signal exists
+    failsafeOnValidDataReceived();
 
-    // when
+    // when 
     failsafeUpdateState();
 
     // we should now have exited failsafe
@@ -647,34 +619,10 @@ TEST(FlightFailsafeTest, TestFailsafeSwitchModeStage2Land)
     EXPECT_EQ(1, CALL_COUNTER(COUNTER_MW_DISARM));
     EXPECT_EQ(FAILSAFE_RX_LOSS_MONITORING, failsafePhase());
 
-    // handle the first delay in rxDataRecoveryPeriod
-    sysTickUptime += PERIOD_RXDATA_RECOVERY;
-    failsafeOnValidDataReceived();
-
-    // when 
-    failsafeUpdateState();
-
-    // we should still be in failsafe monitoring mode
-    EXPECT_TRUE(failsafeIsActive());
-    EXPECT_TRUE(isArmingDisabled());
-    EXPECT_EQ(1, CALL_COUNTER(COUNTER_MW_DISARM));
-    EXPECT_EQ(FAILSAFE_RX_LOSS_MONITORING, failsafePhase());
-
-    // handle the second delay
-    sysTickUptime += PERIOD_RXDATA_RECOVERY;
-    failsafeOnValidDataReceived();
-
-    // when 
-    failsafeUpdateState();
-
-    // we should still be in failsafe monitoring mode
-    EXPECT_TRUE(failsafeIsActive());
-    EXPECT_TRUE(isArmingDisabled());
-    EXPECT_EQ(1, CALL_COUNTER(COUNTER_MW_DISARM));
-    EXPECT_EQ(FAILSAFE_RX_LOSS_MONITORING, failsafePhase());
 
     // one tick later
     sysTickUptime ++;
+    failsafeOnValidDataReceived();
 
     // when
     failsafeUpdateState();
@@ -724,7 +672,7 @@ TEST(FlightFailsafeTest, TestFailsafeNotActivatedWhenDisarmedAndRXLossIsDetected
     EXPECT_FALSE(isArmingDisabled());
 
     // simulate an Rx loss for the stage 1 duration
-    sysTickUptime += (failsafeConfig()->failsafe_delay * MILLIS_PER_TENTH_SECOND);;
+    sysTickUptime += (failsafeConfig()->failsafe_delay * MILLIS_PER_TENTH_SECOND);
     failsafeOnValidDataFailed();
     failsafeUpdateState();
 
@@ -792,15 +740,18 @@ throttleStatus_e calculateThrottleStatus()
 
 void delay(uint32_t) {}
 
-bool featureIsEnabled(uint32_t mask) {
+bool featureIsEnabled(uint32_t mask)
+{
     return (mask & testFeatureMask);
 }
 
-void disarm(flightLogDisarmReason_e) {
+void disarm(flightLogDisarmReason_e)
+{
     callCounts[COUNTER_MW_DISARM]++;
 }
 
-void beeper(beeperMode_e mode) {
+void beeper(beeperMode_e mode)
+{
     UNUSED(mode);
 }
 
@@ -814,7 +765,8 @@ bool isUsingSticksForArming(void)
     return isUsingSticksToArm;
 }
 
-bool areSticksActive(uint8_t stickPercentLimit) {
+bool areSticksActive(uint8_t stickPercentLimit)
+{
     UNUSED(stickPercentLimit);
     return false;
 }

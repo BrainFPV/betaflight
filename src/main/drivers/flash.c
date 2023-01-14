@@ -103,6 +103,12 @@ static bool flashQuadSpiInit(const flashConfig_t *flashConfig)
                     detected = true;
                 }
 #endif
+
+#ifdef USE_FLASH_M25P16
+                if (!detected && m25p16_detect(&flashDevice, chipID)) {
+                    detected = true;
+                }
+#endif
             }
 
             if (offset == 1) {
@@ -116,6 +122,10 @@ static bool flashQuadSpiInit(const flashConfig_t *flashConfig)
                     detected = true;
                 }
 #endif
+            }
+
+            if (detected) {
+                flashDevice.geometry.jedecId = chipID;
             }
         }
         phase++;
@@ -134,6 +144,7 @@ void flashPreInit(const flashConfig_t *flashConfig)
 
 static bool flashSpiInit(const flashConfig_t *flashConfig)
 {
+    bool detected = false;
     // Read chip identification and send it to device detect
     dev = &devInstance;
 
@@ -179,30 +190,37 @@ static bool flashSpiInit(const flashConfig_t *flashConfig)
 
 #ifdef USE_FLASH_M25P16
     if (m25p16_detect(&flashDevice, chipID)) {
-        return true;
+        detected = true;
     }
 #endif
 
-#ifdef USE_FLASH_W25M512
-    if (w25m_detect(&flashDevice, chipID)) {
-        return true;
+#if defined(USE_FLASH_W25M512) || defined(USE_FLASH_W25M)
+    if (!detected && w25m_detect(&flashDevice, chipID)) {
+        detected = true;
     }
 #endif
 
-    // Newer chips
-    chipID = (readIdResponse[1] << 16) | (readIdResponse[2] << 8) | (readIdResponse[3]);
+    if (!detected) {
+        // Newer chips
+        chipID = (readIdResponse[1] << 16) | (readIdResponse[2] << 8) | (readIdResponse[3]);
+    }
 
 #ifdef USE_FLASH_W25N01G
-    if (w25n01g_detect(&flashDevice, chipID)) {
-        return true;
+    if (!detected && w25n01g_detect(&flashDevice, chipID)) {
+        detected = true;
     }
 #endif
 
 #ifdef USE_FLASH_W25M02G
-    if (w25m_detect(&flashDevice, chipID)) {
-        return true;
+    if (!detected && w25m_detect(&flashDevice, chipID)) {
+        detected = true;
     }
 #endif
+
+    if (detected) {
+        flashDevice.geometry.jedecId = chipID;
+        return detected;
+    }
 
     spiPreinitByTag(flashConfig->csTag);
 
@@ -338,7 +356,7 @@ void flashDisableDma(void)
 
 static void flashConfigurePartitions(void)
 {
-
+#if defined(FIRMWARE_SIZE) || defined(CONFIG_IN_EXTERNAL_FLASH) || defined(USE_FLASHFS)
     const flashGeometry_t *flashGeometry = flashGetGeometry();
     if (flashGeometry->totalSize == 0) {
         return;
@@ -351,6 +369,7 @@ static void flashConfigurePartitions(void)
     if (badBlockPartition) {
         endSector = badBlockPartition->startSector - 1;
     }
+#endif
 
 #if defined(FIRMWARE_SIZE)
     const uint32_t firmwareSize = (FIRMWARE_SIZE * 1024);

@@ -76,8 +76,8 @@ dshotBitbangStatus_e bbStatus;
 #define BB_OUTPUT_BUFFER_ATTRIBUTE DMA_RAM
 #define BB_INPUT_BUFFER_ATTRIBUTE  DMA_RAM
 #elif defined(STM32G4)
-#define BB_OUTPUT_BUFFER_ATTRIBUTE DMA_RAM_W
-#define BB_INPUT_BUFFER_ATTRIBUTE  DMA_RAM_R
+#define BB_OUTPUT_BUFFER_ATTRIBUTE FAST_DATA_ZERO_INIT
+#define BB_INPUT_BUFFER_ATTRIBUTE  FAST_DATA_ZERO_INIT
 #endif
 #endif // USE_DSHOT_CACHE_MGMT
 
@@ -501,6 +501,7 @@ static bool bbUpdateStart(void)
         const timeMs_t currentTimeMs = millis();
 #endif
         timeUs_t currentUs = micros();
+
         // don't send while telemetry frames might still be incoming
         if (cmpTimeUs(currentUs, lastSendUs) < (timeDelta_t)(40 + 2 * dshotFrameUs)) {
             return false;
@@ -522,34 +523,37 @@ static bool bbUpdateStart(void)
 #endif
 
 #ifdef STM32F4
-            uint32_t value = decode_bb_bitband(
+            uint32_t rawValue = decode_bb_bitband(
                 bbMotors[motorIndex].bbPort->portInputBuffer,
                 bbMotors[motorIndex].bbPort->portInputCount - bbDMA_Count(bbMotors[motorIndex].bbPort),
                 bbMotors[motorIndex].pinIndex);
 #else
-            uint32_t value = decode_bb(
+            uint32_t rawValue = decode_bb(
                 bbMotors[motorIndex].bbPort->portInputBuffer,
                 bbMotors[motorIndex].bbPort->portInputCount - bbDMA_Count(bbMotors[motorIndex].bbPort),
                 bbMotors[motorIndex].pinIndex);
 #endif
-            if (value == BB_NOEDGE) {
+            if (rawValue == DSHOT_TELEMETRY_NOEDGE) {
                 continue;
             }
             dshotTelemetryState.readCount++;
 
-            if (value != BB_INVALID) {
-                dshotTelemetryState.motorState[motorIndex].telemetryValue = value;
-                dshotTelemetryState.motorState[motorIndex].telemetryActive = true;
-                if (motorIndex < 4) {
-                    DEBUG_SET(DEBUG_DSHOT_RPM_TELEMETRY, motorIndex, value);
+            if (rawValue != DSHOT_TELEMETRY_INVALID) {
+                // Check EDT enable or store raw value
+                if ((rawValue == 0x0E00) && (dshotCommandGetCurrent(motorIndex) == DSHOT_CMD_EXTENDED_TELEMETRY_ENABLE)) {
+                    dshotTelemetryState.motorState[motorIndex].telemetryTypes = 1 << DSHOT_TELEMETRY_TYPE_STATE_EVENTS;
+                } else {
+                    dshotTelemetryState.motorState[motorIndex].rawValue = rawValue;
                 }
             } else {
                 dshotTelemetryState.invalidPacketCount++;
             }
 #ifdef USE_DSHOT_TELEMETRY_STATS
-            updateDshotTelemetryQuality(&dshotTelemetryQuality[motorIndex], value != BB_INVALID, currentTimeMs);
+            updateDshotTelemetryQuality(&dshotTelemetryQuality[motorIndex], rawValue != DSHOT_TELEMETRY_INVALID, currentTimeMs);
 #endif
         }
+
+        dshotTelemetryState.rawValueState = DSHOT_RAW_VALUE_STATE_NOT_PROCESSED;
     }
 #endif
     for (int i = 0; i < usedMotorPorts; i++) {
@@ -680,14 +684,14 @@ static bool bbIsMotorEnabled(uint8_t index)
     return bbMotors[index].enabled;
 }
 
-static void bbPostInit()
+static void bbPostInit(void)
 {
     bbFindPacerTimer();
 
     for (int motorIndex = 0; motorIndex < MAX_SUPPORTED_MOTORS && motorIndex < motorCount; motorIndex++) {
 
         if (!bbMotorConfig(bbMotors[motorIndex].io, motorIndex, motorPwmProtocol, bbMotors[motorIndex].output)) {
-            return NULL;
+            return;
         }
 
 
@@ -713,7 +717,7 @@ static motorVTable_t bbVTable = {
     .shutdown = bbShutdown,
 };
 
-dshotBitbangStatus_e dshotBitbangGetStatus()
+dshotBitbangStatus_e dshotBitbangGetStatus(void)
 {
     return bbStatus;
 }
@@ -762,7 +766,7 @@ motorDevice_t *dshotBitbangDevInit(const motorDevConfig_t *motorConfig, uint8_t 
         bbMotors[motorIndex].pinIndex = pinIndex;
         bbMotors[motorIndex].io = io;
         bbMotors[motorIndex].output = output;
-#if defined(STM32F4) || defined(STM32F3)
+#if defined(STM32F4)
         bbMotors[motorIndex].iocfg = IO_CONFIG(GPIO_Mode_OUT, GPIO_Speed_50MHz, GPIO_OType_PP, bbPuPdMode);
 #elif defined(STM32F7) || defined(STM32G4) || defined(STM32H7)
         bbMotors[motorIndex].iocfg = IO_CONFIG(GPIO_MODE_OUTPUT_PP, GPIO_SPEED_FREQ_LOW, bbPuPdMode);

@@ -25,7 +25,7 @@
 
 /* Include(s) -------------------------------------------------------------------------------------------------------*/
 
-#include "stdbool.h"
+#include <stdbool.h>
 #include <string.h>
 
 #include "platform.h"
@@ -540,12 +540,14 @@ SD_Error_t SD_Init(void)
     return result;
 }
 
-SD_Error_t SD_CheckWrite(void) {
+SD_Error_t SD_CheckWrite(void)
+{
     if (SD_Handle.TXCplt != 0) return SD_BUSY;
     return SD_OK;
 }
 
-SD_Error_t SD_CheckRead(void) {
+SD_Error_t SD_CheckRead(void)
+{
     if (SD_Handle.RXCplt != 0) return SD_BUSY;
     return SD_OK;
 }

@@ -123,7 +123,7 @@ bool spiInit(SPIDevice device)
 #endif
 
     case SPIDEV_3:
-#if defined(USE_SPI_DEVICE_3) && !defined(STM32F1)
+#if defined(USE_SPI_DEVICE_3)
         spiInitDevice(device);
         return true;
 #else
@@ -386,7 +386,7 @@ uint32_t spiCalculateClock(uint16_t spiClkDivisor)
 }
 
 // Interrupt handler for SPI receive DMA completion
-static void spiIrqHandler(const extDevice_t *dev)
+FAST_IRQ_HANDLER static void spiIrqHandler(const extDevice_t *dev)
 {
     busDevice_t *bus = dev->bus;
     busSegment_t *nextSegment;
@@ -416,11 +416,6 @@ static void spiIrqHandler(const extDevice_t *dev)
     nextSegment = (busSegment_t *)bus->curSegment + 1;
 
     if (nextSegment->len == 0) {
-        if (!bus->curSegment->negateCS) {
-            // Negate Chip Select if not done so already
-            IOHi(dev->busType_u.spi.csnPin);
-        }
-
         // If a following transaction has been linked, start it
         if (nextSegment->u.link.dev) {
             const extDevice_t *nextDev = nextSegment->u.link.dev;
@@ -428,6 +423,7 @@ static void spiIrqHandler(const extDevice_t *dev)
             // The end of the segment list has been reached
             bus->curSegment = nextSegments;
             nextSegment->u.link.dev = NULL;
+            nextSegment->u.link.segments = NULL;
             spiSequenceStart(nextDev);
         } else {
             // The end of the segment list has been reached, so mark transactions as complete
@@ -459,7 +455,7 @@ static void spiIrqHandler(const extDevice_t *dev)
 }
 
 // Interrupt handler for SPI receive DMA completion
-static void spiRxIrqHandler(dmaChannelDescriptor_t* descriptor)
+FAST_IRQ_HANDLER static void spiRxIrqHandler(dmaChannelDescriptor_t* descriptor)
 {
 #if defined(USE_CHIBIOS)
     CH_IRQ_PROLOGUE();
@@ -504,7 +500,7 @@ static void spiRxIrqHandler(dmaChannelDescriptor_t* descriptor)
 
 #if !defined(STM32G4) && !defined(STM32H7)
 // Interrupt handler for SPI transmit DMA completion
-static void spiTxIrqHandler(dmaChannelDescriptor_t* descriptor)
+FAST_IRQ_HANDLER static void spiTxIrqHandler(dmaChannelDescriptor_t* descriptor)
 {
     const extDevice_t *dev = (const extDevice_t *)descriptor->userParam;
 
@@ -560,7 +556,7 @@ bool spiSetBusInstance(extDevice_t *dev, uint32_t device)
     return true;
 }
 
-void spiInitBusDMA()
+void spiInitBusDMA(void)
 {
     uint32_t device;
 #if defined(STM32F4) && defined(USE_DSHOT_BITBANG)

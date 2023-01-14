@@ -200,6 +200,8 @@ COMMON_SRC = \
             io/vtx_smartaudio.c \
             io/vtx_tramp.c \
             io/vtx_control.c \
+            io/vtx_msp.c \
+            cms/cms_menu_vtx_msp.c
 
 COMMON_DEVICE_SRC = \
             $(CMSIS_SRC) \
@@ -222,7 +224,6 @@ endif
 SPEED_OPTIMISED_SRC := ""
 SIZE_OPTIMISED_SRC  := ""
 
-ifneq ($(TARGET),$(filter $(TARGET),$(F1_TARGETS)))
 SPEED_OPTIMISED_SRC := $(SPEED_OPTIMISED_SRC) \
             common/encoding.c \
             common/filter.c \
@@ -361,7 +362,9 @@ SIZE_OPTIMISED_SRC := $(SIZE_OPTIMISED_SRC) \
             osd/osd.c \
             osd/osd_elements.c \
             osd/osd_warnings.c \
-            rx/rx_bind.c
+            rx/rx_bind.c \
+            io/vtx_msp.c \
+            cms/cms_menu_vtx_msp.c
 
 # Gyro driver files that only contain initialization and configuration code - not runtime code
 SIZE_OPTIMISED_SRC := $(SIZE_OPTIMISED_SRC) \
@@ -376,7 +379,6 @@ SIZE_OPTIMISED_SRC := $(SIZE_OPTIMISED_SRC) \
 
 
 # F4 and F7 optimizations
-ifneq ($(TARGET),$(filter $(TARGET),$(F3_TARGETS)))
 SPEED_OPTIMISED_SRC := $(SPEED_OPTIMISED_SRC) \
             drivers/bus_i2c_hal.c \
             drivers/bus_spi_ll.c \
@@ -388,8 +390,6 @@ SPEED_OPTIMISED_SRC := $(SPEED_OPTIMISED_SRC) \
 
 SIZE_OPTIMISED_SRC := $(SIZE_OPTIMISED_SRC) \
             drivers/bus_i2c_hal_init.c
-endif #!F3
-endif #!F1
 
 # check if target.mk supplied
 SRC := $(STARTUP_SRC) $(MCU_COMMON_SRC) $(SRC) $(VARIANT_SRC)
@@ -537,6 +537,12 @@ ifneq ($(filter MSC,$(FEATURES)),)
 SRC += $(MSC_SRC)
 endif
 # end target specific make file checks
+
+ifneq ($(BOARD),)
+SRC += board/$(BOARD)/board.c
+INCLUDE_DIRS += $(ROOT)/src/main/board/$(BOARD)
+TARGET_FLAGS := -D'__BOARD__="$(BOARD)"' $(TARGET_FLAGS)
+endif
 
 # Search path and source files for the ST stdperiph library
 VPATH        := $(VPATH):$(STDPERIPH_DIR)/src

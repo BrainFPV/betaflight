@@ -54,10 +54,11 @@
 #define ITERM_RELAX_CUTOFF_DEFAULT 15
 
 // Anti gravity I constant
-#define AG_KI 21.586988f;
-
+#define ANTIGRAVITY_KI 0.34f; // if AG gain is 6, about 6 times iTerm will be added
+#define ANTIGRAVITY_KP 0.0034f; // one fifth of the I gain on P by default
 #define ITERM_ACCELERATOR_GAIN_OFF 0
-#define ITERM_ACCELERATOR_GAIN_MAX 30000
+#define ITERM_ACCELERATOR_GAIN_MAX 250
+
 #define PID_ROLL_DEFAULT  { 45, 80, 40, 120 }
 #define PID_PITCH_DEFAULT { 47, 84, 46, 125 }
 #define PID_YAW_DEFAULT   { 45, 80,  0, 120 }
@@ -66,6 +67,13 @@
 #define DTERM_LPF1_DYN_MIN_HZ_DEFAULT 75
 #define DTERM_LPF1_DYN_MAX_HZ_DEFAULT 150
 #define DTERM_LPF2_HZ_DEFAULT 150
+
+#define TPA_MAX 100
+
+typedef enum {
+    TPA_MODE_PD,
+    TPA_MODE_D
+} tpaMode_e;
 
 typedef enum {
     PID_ROLL,
@@ -100,11 +108,6 @@ typedef struct pidf_s {
     uint8_t D;
     uint16_t F;
 } pidf_t;
-
-typedef enum {
-    ANTI_GRAVITY_SMOOTH,
-    ANTI_GRAVITY_STEP
-} antiGravityMode_e;
 
 typedef enum {
     ITERM_RELAX_OFF,
@@ -149,9 +152,7 @@ typedef struct pidProfile_s {
     uint8_t horizon_tilt_expert_mode;       // OFF or ON
 
     // Betaflight PID controller parameters
-    uint8_t  antiGravityMode;             // type of anti gravity method
-    uint16_t itermThrottleThreshold;        // max allowed throttle delta before iterm accelerated in ms
-    uint16_t itermAcceleratorGain;          // Iterm Accelerator Gain when itermThrottlethreshold is hit
+    uint8_t anti_gravity_gain;              // AntiGravity Gain (was itermAcceleratorGain)
     uint16_t yawRateAccelLimit;             // yaw accel limiter for deg/sec/ms
     uint16_t rateAccelLimit;                // accel limiter roll/pitch deg/sec/ms
     uint16_t crash_dthreshold;              // dterm crash value
@@ -198,7 +199,7 @@ typedef struct pidProfile_s {
     uint8_t transient_throttle_limit;       // Maximum DC component of throttle change to mix into throttle to prevent airmode mirroring noise
     char profileName[MAX_PROFILE_NAME_LENGTH + 1]; // Descriptive name for profile
 
-    uint8_t dyn_idle_min_rpm;                   // minimum motor speed enforced by the dynamic idle controller
+    uint8_t dyn_idle_min_rpm;               // minimum motor speed enforced by the dynamic idle controller
     uint8_t dyn_idle_p_gain;                // P gain during active control of rpm
     uint8_t dyn_idle_i_gain;                // I gain during active control of rpm
     uint8_t dyn_idle_d_gain;                // D gain for corrections around rapid changes in rpm
@@ -226,12 +227,18 @@ typedef struct pidProfile_s {
     uint8_t simplified_dterm_filter;
     uint8_t simplified_dterm_filter_multiplier;
     uint8_t simplified_pitch_pi_gain;
+
+    uint8_t anti_gravity_cutoff_hz;
+    uint8_t anti_gravity_p_gain;
+    uint8_t tpa_mode;                       // Controls which PID terms TPA effects
+    uint8_t tpa_rate;                       // Percent reduction in P or D at full throttle
+    uint16_t tpa_breakpoint;                // Breakpoint where TPA is activated
 } pidProfile_t;
 
 PG_DECLARE_ARRAY(pidProfile_t, PID_PROFILE_COUNT, pidProfiles);
 
 typedef struct pidConfig_s {
-    uint8_t pid_process_denom;              // Processing denominator for PID controller vs gyro sampling rate
+    uint8_t pid_process_denom;                   // Processing denominator for PID controller vs gyro sampling rate
     uint8_t runaway_takeoff_prevention;          // off, on - enables pidsum runaway disarm logic
     uint16_t runaway_takeoff_deactivate_delay;   // delay in ms for "in-flight" conditions before deactivation (successful flight)
     uint8_t runaway_takeoff_deactivate_throttle; // minimum throttle percent required during deactivation phase
@@ -279,14 +286,12 @@ typedef struct pidRuntime_s {
     filterApplyFnPtr ptermYawLowpassApplyFn;
     pt1Filter_t ptermYawLowpass;
     bool antiGravityEnabled;
-    uint8_t antiGravityMode;
-    pt1Filter_t antiGravityThrottleLpf;
-    pt1Filter_t antiGravitySmoothLpf;
+    pt2Filter_t antiGravityLpf;
     float antiGravityOsdCutoff;
-    float antiGravityThrottleHpf;
-    float antiGravityPBoost;
+    float antiGravityThrottleD;
     float itermAccelerator;
-    uint16_t itermAcceleratorGain;
+    uint8_t antiGravityGain;
+    float antiGravityPGain;
     pidCoefficient_t pidCoefficient[XYZ_AXIS_COUNT];
     float levelGain;
     float horizonGain;
@@ -391,6 +396,10 @@ typedef struct pidRuntime_s {
     float feedforwardJitterFactor;
     float feedforwardBoostFactor;
 #endif
+
+#ifdef USE_ACC
+    pt3Filter_t attitudeFilter[2];  // Only for ROLL and PITCH
+#endif
 } pidRuntime_t;
 
 extern pidRuntime_t pidRuntime;
@@ -415,7 +424,6 @@ void pidSetAcroTrainerState(bool newState);
 void pidUpdateTpaFactor(float throttle);
 void pidUpdateAntiGravityThrottleFilter(float throttle);
 bool pidOsdAntiGravityActive(void);
-bool pidOsdAntiGravityMode(void);
 void pidSetAntiGravityState(bool newState);
 bool pidAntiGravityEnabled(void);
 
@@ -437,7 +445,7 @@ void applyItermRelax(const int axis, const float iterm,
 void applyAbsoluteControl(const int axis, const float gyroRate, float *currentPidSetpoint, float *itermErrorRate);
 void rotateItermAndAxisError();
 float pidLevel(int axis, const pidProfile_t *pidProfile,
-    const rollAndPitchTrims_t *angleTrim, float currentPidSetpoint);
+    const rollAndPitchTrims_t *angleTrim, float currentPidSetpoint, float horizonLevelStrength);
 float calcHorizonLevelStrength(void);
 #endif
 void dynLpfDTermUpdate(float throttle);

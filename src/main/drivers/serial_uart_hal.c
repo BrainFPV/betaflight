@@ -46,7 +46,8 @@
 #include "drivers/serial_uart.h"
 #include "drivers/serial_uart_impl.h"
 
-static void usartConfigurePinInversion(uartPort_t *uartPort) {
+static void usartConfigurePinInversion(uartPort_t *uartPort)
+{
     bool inverted = uartPort->port.options & SERIAL_INVERTED;
 
     if (inverted)
@@ -76,12 +77,12 @@ static uartDevice_t *uartFindDevice(uartPort_t *uartPort)
     return NULL;
 }
 
-#if !(defined(STM32F1) || defined(STM32F4))
+#if !(defined(STM32F4))
 static void uartConfigurePinSwap(uartPort_t *uartPort)
 {
     uartDevice_t *uartDevice = uartFindDevice(uartPort);
     if (!uartDevice) {
-        return NULL;
+        return;
     }
 
     if (uartDevice->pinSwap) {

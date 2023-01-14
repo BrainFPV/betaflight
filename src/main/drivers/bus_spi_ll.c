@@ -36,6 +36,9 @@
 #include "drivers/io.h"
 #include "drivers/rcc.h"
 
+// Use DMA if possible if this many bytes are to be transferred
+#define SPI_DMA_THRESHOLD 8
+
 #ifndef SPI2_SCK_PIN
 #define SPI2_NSS_PIN    PB12
 #define SPI2_SCK_PIN    PB13
@@ -222,7 +225,7 @@ void spiInternalResetStream(dmaChannelDescriptor_t *descriptor)
 }
 
 
-static bool spiInternalReadWriteBufPolled(SPI_TypeDef *instance, const uint8_t *txData, uint8_t *rxData, int len)
+FAST_CODE static bool spiInternalReadWriteBufPolled(SPI_TypeDef *instance, const uint8_t *txData, uint8_t *rxData, int len)
 {
 #if defined(STM32H7)
     LL_SPI_SetTransferSize(instance, len);
@@ -421,7 +424,7 @@ void spiInternalStartDMA(const extDevice_t *dev)
 
         /* Note from AN4031
          *
-         * If the user enables the used peripheral before the corresponding DMA stream, a “FEIF”
+         * If the user enables the used peripheral before the corresponding DMA stream, a FEIF
          * (FIFO Error Interrupt Flag) may be set due to the fact the DMA is not ready to provide
          * the first required data to the peripheral (in case of memory-to-peripheral transfer).
          */
@@ -461,7 +464,7 @@ void spiInternalStartDMA(const extDevice_t *dev)
 
         /* Note from AN4031
          *
-         * If the user enables the used peripheral before the corresponding DMA stream, a “FEIF”
+         * If the user enables the used peripheral before the corresponding DMA stream, a FEIF
          * (FIFO Error Interrupt Flag) may be set due to the fact the DMA is not ready to provide
          * the first required data to the peripheral (in case of memory-to-peripheral transfer).
          */
@@ -530,7 +533,7 @@ void spiInternalStopDMA (const extDevice_t *dev)
 }
 
 // DMA transfer setup and start
-void spiSequenceStart(const extDevice_t *dev)
+FAST_CODE void spiSequenceStart(const extDevice_t *dev)
 {
     busDevice_t *bus = dev->bus;
     SPI_TypeDef *instance = bus->busType_u.spi.instance;
@@ -632,8 +635,10 @@ void spiSequenceStart(const extDevice_t *dev)
     }
 
     // Use DMA if possible
-    // If there are more than one segments, or a single segment with negateCS negated then force DMA irrespective of length
-    if (bus->useDMA && dmaSafe && ((segmentCount > 1) || (xferLen >= 8) || !bus->curSegment->negateCS)) {
+    // If there are more than one segments, or a single segment with negateCS negated in the list terminator then force DMA irrespective of length
+    if (bus->useDMA && dmaSafe && ((segmentCount > 1) ||
+                                   (xferLen >= SPI_DMA_THRESHOLD) ||
+                                   !bus->curSegment[segmentCount].negateCS)) {
         // Intialise the init structures for the first transfer
         spiInternalInitStream(dev, false);
 
@@ -689,18 +694,14 @@ void spiSequenceStart(const extDevice_t *dev)
             }
         }
 
-        if (lastSegment && !lastSegment->negateCS) {
-            // Negate Chip Select if not done so already
-            IOHi(dev->busType_u.spi.csnPin);
-        }
-
         // If a following transaction has been linked, start it
         if (bus->curSegment->u.link.dev) {
-            const extDevice_t *nextDev = bus->curSegment->u.link.dev;
-            busSegment_t *nextSegments = (busSegment_t *)bus->curSegment->u.link.segments;
             busSegment_t *endSegment = (busSegment_t *)bus->curSegment;
+            const extDevice_t *nextDev = endSegment->u.link.dev;
+            busSegment_t *nextSegments = (busSegment_t *)endSegment->u.link.segments;
             bus->curSegment = nextSegments;
             endSegment->u.link.dev = NULL;
+            endSegment->u.link.segments = NULL;
             spiSequenceStart(nextDev);
         } else {
             // The end of the segment list has been reached, so mark transactions as complete

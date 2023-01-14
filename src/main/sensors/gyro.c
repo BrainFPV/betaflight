@@ -92,9 +92,7 @@ static FAST_DATA_ZERO_INIT bool yawSpinDetected;
 static FAST_DATA_ZERO_INIT timeUs_t yawSpinTimeUs;
 #endif
 
-static FAST_DATA_ZERO_INIT float accumulatedMeasurements[XYZ_AXIS_COUNT];
-static FAST_DATA_ZERO_INIT float gyroPrevious[XYZ_AXIS_COUNT];
-static FAST_DATA_ZERO_INIT int accumulatedMeasurementCount;
+static FAST_DATA_ZERO_INIT float gyroFilteredDownsampled[XYZ_AXIS_COUNT];
 
 static FAST_DATA_ZERO_INIT int16_t gyroSensorTemperature;
 
@@ -150,12 +148,12 @@ void pgResetFn_gyroConfig(gyroConfig_t *gyroConfig)
     gyroConfig->simplified_gyro_filter_multiplier = SIMPLIFIED_TUNING_DEFAULT;
 }
 
-FAST_CODE bool isGyroSensorCalibrationComplete(const gyroSensor_t *gyroSensor)
+bool isGyroSensorCalibrationComplete(const gyroSensor_t *gyroSensor)
 {
     return gyroSensor->calibration.cyclesRemaining == 0;
 }
 
-FAST_CODE bool gyroIsCalibrationComplete(void)
+bool gyroIsCalibrationComplete(void)
 {
     switch (gyro.gyroToUse) {
         default:
@@ -220,7 +218,7 @@ bool isFirstArmingGyroCalibrationRunning(void)
     return firstArmingCalibrationWasStarted && !gyroIsCalibrationComplete();
 }
 
-STATIC_UNIT_TESTED void performGyroCalibration(gyroSensor_t *gyroSensor, uint8_t gyroMovementCalibrationThreshold)
+STATIC_UNIT_TESTED NOINLINE void performGyroCalibration(gyroSensor_t *gyroSensor, uint8_t gyroMovementCalibrationThreshold)
 {
     for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
         // Reset g[axis] at start of calibration
@@ -308,7 +306,7 @@ static FAST_CODE_NOINLINE void handleOverflow(timeUs_t currentTimeUs)
     }
 }
 
-static FAST_CODE void checkForOverflow(timeUs_t currentTimeUs)
+static FAST_CODE_NOINLINE void checkForOverflow(timeUs_t currentTimeUs)
 {
     // check for overflow to handle Yaw Spin To The Moon (YSTTM)
     // ICM gyros are specified to +/- 2000 deg/sec, in a crash they can go out of spec.
@@ -363,7 +361,7 @@ static FAST_CODE_NOINLINE void handleYawSpin(timeUs_t currentTimeUs)
     }
 }
 
-static FAST_CODE void checkForYawSpin(timeUs_t currentTimeUs)
+static FAST_CODE_NOINLINE void checkForYawSpin(timeUs_t currentTimeUs)
 {
     // if not in overflow mode, handle yaw spins above threshold
 #ifdef USE_GYRO_OVERFLOW_CHECK
@@ -541,11 +539,8 @@ FAST_CODE void gyroFiltering(timeUs_t currentTimeUs)
 
     if (!overflowDetected) {
         for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-            // integrate using trapezium rule to avoid bias
-            accumulatedMeasurements[axis] += 0.5f * (gyroPrevious[axis] + gyro.gyroADCf[axis]) * gyro.targetLooptime;
-            gyroPrevious[axis] = gyro.gyroADCf[axis];
+            gyroFilteredDownsampled[axis] = pt1FilterApply(&gyro.imuGyroFilter[axis], gyro.gyroADCf[axis]);
         }
-        accumulatedMeasurementCount++;
     }
 
 #if defined(USE_BRAINFPV_SPECTROGRAPH)
@@ -573,23 +568,9 @@ FAST_CODE void gyroFiltering(timeUs_t currentTimeUs)
 #endif
 }
 
-bool gyroGetAccumulationAverage(float *accumulationAverage)
+float gyroGetFilteredDownsampled(int axis)
 {
-    if (accumulatedMeasurementCount) {
-        // If we have gyro data accumulated, calculate average rate that will yield the same rotation
-        const timeUs_t accumulatedMeasurementTimeUs = accumulatedMeasurementCount * gyro.targetLooptime;
-        for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-            accumulationAverage[axis] = accumulatedMeasurements[axis] / accumulatedMeasurementTimeUs;
-            accumulatedMeasurements[axis] = 0.0f;
-        }
-        accumulatedMeasurementCount = 0;
-        return true;
-    } else {
-        for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
-            accumulationAverage[axis] = 0.0f;
-        }
-        return false;
-    }
+    return gyroFilteredDownsampled[axis];
 }
 
 int16_t gyroReadSensorTemperature(gyroSensor_t gyroSensor)
@@ -647,7 +628,8 @@ uint16_t gyroAbsRateDps(int axis)
 
 #ifdef USE_DYN_LPF
 
-float dynThrottle(float throttle) {
+float dynThrottle(float throttle)
+{
     return throttle * (1 - (throttle * throttle) / 3.0f) * 1.5f;
 }
 

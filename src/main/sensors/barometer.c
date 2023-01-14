@@ -29,6 +29,7 @@
 #include "build/debug.h"
 
 #include "common/maths.h"
+#include "common/filter.h"
 
 #include "pg/pg.h"
 #include "pg/pg_ids.h"
@@ -59,13 +60,10 @@
 
 baro_t baro;                        // barometer access functions
 
-PG_REGISTER_WITH_RESET_FN(barometerConfig_t, barometerConfig, PG_BAROMETER_CONFIG, 1);
+PG_REGISTER_WITH_RESET_FN(barometerConfig_t, barometerConfig, PG_BAROMETER_CONFIG, 3);
 
 void pgResetFn_barometerConfig(barometerConfig_t *barometerConfig)
 {
-    barometerConfig->baro_sample_count = 21;
-    barometerConfig->baro_noise_lpf = 600;
-    barometerConfig->baro_cf_vel = 985;
     barometerConfig->baro_hardware = BARO_DEFAULT;
 
     // For backward compatibility; ceate a valid default value for bus parameters
@@ -146,17 +144,12 @@ void pgResetFn_barometerConfig(barometerConfig_t *barometerConfig)
     barometerConfig->baro_xclr_tag = IO_TAG(BARO_XCLR_PIN);
 }
 
-static uint16_t calibratingB = 0;      // baro calibration = get new ground pressure value
-static int32_t baroPressure = 0;
-static int32_t baroTemperature = 0;
+#define NUM_CALIBRATION_CYCLES   100        // 10 seconds init_delay + 100 * 25 ms = 12.5 seconds before valid baro altitude
+#define NUM_GROUND_LEVEL_CYCLES   10        // calibrate baro to new ground level (10 * 25 ms = ~250 ms non blocking)
 
-static int32_t baroGroundAltitude = 0;
-static int32_t baroGroundPressure = 8*101325;
-static uint32_t baroPressureSum = 0;
-
-#define CALIBRATING_BARO_CYCLES 200 // 10 seconds init_delay + 200 * 25 ms = 15 seconds before ground pressure settles
-#define SET_GROUND_LEVEL_BARO_CYCLES 10 // calibrate baro to new ground level (10 * 25 ms = ~250 ms non blocking)
-
+static uint16_t calibrationCycles = 0;      // baro calibration = get new ground pressure value
+static float baroGroundAltitude = 0.0f;
+static bool baroCalibrated = false;
 static bool baroReady = false;
 
 void baroPreInit(void)
@@ -168,7 +161,7 @@ void baroPreInit(void)
 #endif
 }
 
-bool baroDetect(baroDev_t *baroDev, baroSensor_e baroHardwareToUse)
+static bool baroDetect(baroDev_t *baroDev, baroSensor_e baroHardwareToUse)
 {
     extDevice_t *dev = &baroDev->dev;
 
@@ -312,72 +305,33 @@ bool baroDetect(baroDev_t *baroDev, baroSensor_e baroHardwareToUse)
     return true;
 }
 
-bool baroIsCalibrationComplete(void)
+void baroInit(void)
 {
-    return calibratingB == 0;
+    baroReady = baroDetect(&baro.dev, barometerConfig()->baro_hardware);
+}
+
+bool baroIsCalibrated(void)
+{
+    return baroCalibrated;
 }
 
 static void baroSetCalibrationCycles(uint16_t calibrationCyclesRequired)
 {
-    calibratingB = calibrationCyclesRequired;
+    calibrationCycles = calibrationCyclesRequired;
 }
 
 void baroStartCalibration(void)
 {
-    baroSetCalibrationCycles(CALIBRATING_BARO_CYCLES);
+    baroSetCalibrationCycles(NUM_CALIBRATION_CYCLES);
+    baroGroundAltitude = 0;
+    baroCalibrated = false;
 }
 
 void baroSetGroundLevel(void)
 {
-    baroSetCalibrationCycles(SET_GROUND_LEVEL_BARO_CYCLES);
-}
-
-#define PRESSURE_SAMPLES_MEDIAN 3
-
-static int32_t applyBarometerMedianFilter(int32_t newPressureReading)
-{
-    static int32_t barometerFilterSamples[PRESSURE_SAMPLES_MEDIAN];
-    static int currentFilterSampleIndex = 0;
-    static bool medianFilterReady = false;
-    int nextSampleIndex;
-
-    nextSampleIndex = (currentFilterSampleIndex + 1);
-    if (nextSampleIndex == PRESSURE_SAMPLES_MEDIAN) {
-        nextSampleIndex = 0;
-        medianFilterReady = true;
-    }
-
-    barometerFilterSamples[currentFilterSampleIndex] = newPressureReading;
-    currentFilterSampleIndex = nextSampleIndex;
-
-    if (medianFilterReady)
-        return quickMedianFilter3(barometerFilterSamples);
-    else
-        return newPressureReading;
-}
-
-static uint32_t recalculateBarometerTotal(uint32_t pressureTotal, int32_t newPressureReading)
-{
-    static int32_t barometerSamples[BARO_SAMPLE_COUNT_MAX + 1];
-    static int currentSampleIndex = 0;
-    int nextSampleIndex;
-
-    // store current pressure in barometerSamples
-    if (currentSampleIndex >= barometerConfig()->baro_sample_count) {
-        nextSampleIndex = 0;
-        baroReady = true;
-    } else {
-        nextSampleIndex = (currentSampleIndex + 1);
-    }
-    barometerSamples[currentSampleIndex] = applyBarometerMedianFilter(newPressureReading);
-
-    // recalculate pressure total
-    pressureTotal += barometerSamples[currentSampleIndex];
-    pressureTotal -= barometerSamples[nextSampleIndex];
-
-    currentSampleIndex = nextSampleIndex;
-
-    return pressureTotal;
+    baroSetCalibrationCycles(NUM_GROUND_LEVEL_CYCLES);
+    baroGroundAltitude = 0;
+    baroCalibrated = false;
 }
 
 typedef enum {
@@ -391,9 +345,17 @@ typedef enum {
 } barometerState_e;
 
 
-bool isBaroReady(void) {
+bool isBaroReady(void)
+{
     return baroReady;
 }
+
+static float pressureToAltitude(const float pressure)
+{
+    return (1.0f - powf(pressure / 101325.0f, 0.190295f)) * 4433000.0f;
+}
+
+static void performBaroCalibrationCycle(const float altitude);
 
 uint32_t baroUpdate(timeUs_t currentTimeUs)
 {
@@ -459,26 +421,33 @@ uint32_t baroUpdate(timeUs_t currentTimeUs)
                 break;
             }
 
-            baro.dev.calculate(&baroPressure, &baroTemperature);
-            baro.baroPressure = baroPressure;
-            baro.baroTemperature = baroTemperature;
-            baroPressureSum = recalculateBarometerTotal(baroPressureSum, baroPressure);
+            // update baro data
+            baro.dev.calculate(&baro.pressure, &baro.temperature);
+            baro.altitude = pressureToAltitude(baro.pressure);
+
+            if (baroIsCalibrated()) {
+                // zero baro altitude
+                baro.altitude -= baroGroundAltitude;
+            } else {
+                // establish stable baroGroundAltitude value to zero baro altitude with
+                performBaroCalibrationCycle(baro.altitude);
+                baro.altitude = 0.0f;
+            }
+
+            DEBUG_SET(DEBUG_BARO, 1, lrintf(baro.pressure / 100.0f));   // hPa
+            DEBUG_SET(DEBUG_BARO, 2, baro.temperature);                 // c°C
+            DEBUG_SET(DEBUG_BARO, 3, lrintf(baro.altitude));            // cm
+
             if (baro.dev.combined_read) {
                 state = BARO_STATE_PRESSURE_START;
             } else {
                 state = BARO_STATE_TEMPERATURE_START;
             }
-
-            DEBUG_SET(DEBUG_BARO, 1, baroTemperature);
-            DEBUG_SET(DEBUG_BARO, 2, baroPressure);
-            DEBUG_SET(DEBUG_BARO, 3, baroPressureSum);
-
-            sleepTime = baro.dev.ut_delay;
             break;
     }
 
     // Where we are using a state machine call schedulerIgnoreTaskExecRate() for all states bar one
-    if (sleepTime != baro.dev.ut_delay) {
+    if (state != BARO_STATE_PRESSURE_START) {
         schedulerIgnoreTaskExecRate();
     }
 
@@ -493,40 +462,22 @@ uint32_t baroUpdate(timeUs_t currentTimeUs)
     return sleepTime;
 }
 
-static float pressureToAltitude(const float pressure)
+float getBaroAltitude(void)
 {
-    return (1.0f - powf(pressure / 101325.0f, 0.190295f)) * 4433000.0f;
+    return baro.altitude;
 }
 
-int32_t baroCalculateAltitude(void)
+static void performBaroCalibrationCycle(const float altitude)
 {
-    int32_t BaroAlt_tmp;
+    static uint16_t cycleCount = 0;
 
-    // calculates height from ground via baro readings
-    if (baroIsCalibrationComplete()) {
-        BaroAlt_tmp = lrintf(pressureToAltitude((float)(baroPressureSum / barometerConfig()->baro_sample_count)));
-        BaroAlt_tmp -= baroGroundAltitude;
-        baro.BaroAlt = lrintf((float)baro.BaroAlt * CONVERT_PARAMETER_TO_FLOAT(barometerConfig()->baro_noise_lpf) + (float)BaroAlt_tmp * (1.0f - CONVERT_PARAMETER_TO_FLOAT(barometerConfig()->baro_noise_lpf))); // additional LPF to reduce baro noise
-    }
-    else {
-        baro.BaroAlt = 0;
-    }
-    return baro.BaroAlt;
-}
+    baroGroundAltitude += altitude;
+    cycleCount++;
 
-void performBaroCalibrationCycle(void)
-{
-    static int32_t savedGroundPressure = 0;
-
-    baroGroundPressure -= baroGroundPressure / 8;
-    baroGroundPressure += baroPressureSum / barometerConfig()->baro_sample_count;
-    baroGroundAltitude = (1.0f - pow_approx((baroGroundPressure / 8) / 101325.0f, 0.190259f)) * 4433000.0f;
-
-    if (baroGroundPressure == savedGroundPressure) {
-        calibratingB = 0;
-    } else {
-        calibratingB--;
-        savedGroundPressure = baroGroundPressure;
+    if (cycleCount >= calibrationCycles) {
+        baroGroundAltitude /= cycleCount;  // simple average
+        baroCalibrated = true;
+        cycleCount = 0;
     }
 }
 

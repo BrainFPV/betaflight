@@ -28,28 +28,21 @@
 // -Wpadded can be turned on to check padding of structs
 //#pragma GCC diagnostic warning "-Wpadded"
 
-#ifdef STM32F1
-#define MINIMAL_CLI
-// Using RX DMA disables the use of receive callbacks
-#define USE_UART1_RX_DMA
-#define USE_UART1_TX_DMA
+#if !defined(CLOUD_BUILD) && !defined(SITL)
+#define USE_DSHOT
 #endif
 
-#ifdef STM32F3
-#define MINIMAL_CLI
-#define USE_DSHOT
-#define USE_DYN_NOTCH_FILTER
-#define USE_CCM_CODE
+#ifdef USE_DSHOT
+#define USE_DSHOT_BITBANG
+#define USE_DSHOT_TELEMETRY
+#define USE_DSHOT_TELEMETRY_STATS
 #endif
 
 #ifdef STM32F4
 #if defined(STM32F40_41xxx)
 #define USE_FAST_DATA
 #endif
-#define USE_DSHOT
-#define USE_DSHOT_BITBANG
-#define USE_DSHOT_TELEMETRY
-#define USE_DSHOT_TELEMETRY_STATS
+
 #define USE_RPM_FILTER
 #define USE_DYN_IDLE
 #define USE_DYN_NOTCH_FILTER
@@ -71,12 +64,8 @@
 
 #ifdef STM32F7
 #define USE_ITCM_RAM
-#define ITCM_RAM_OPTIMISATION "-O2"
+#define ITCM_RAM_OPTIMISATION "-O2", "-freorder-blocks-algorithm=simple"
 #define USE_FAST_DATA
-#define USE_DSHOT
-#define USE_DSHOT_BITBANG
-#define USE_DSHOT_TELEMETRY
-#define USE_DSHOT_TELEMETRY_STATS
 #define USE_RPM_FILTER
 #define USE_DYN_IDLE
 #define USE_DYN_NOTCH_FILTER
@@ -94,12 +83,13 @@
 #endif // STM32F7
 
 #ifdef STM32H7
+
+#ifdef USE_DSHOT
+#define USE_DSHOT_CACHE_MGMT
+#endif
+
 #define USE_ITCM_RAM
 #define USE_FAST_DATA
-#define USE_DSHOT
-#define USE_DSHOT_BITBANG
-#define USE_DSHOT_TELEMETRY
-#define USE_DSHOT_TELEMETRY_STATS
 #define USE_RPM_FILTER
 #define USE_DYN_IDLE
 #define USE_DYN_NOTCH_FILTER
@@ -112,16 +102,10 @@
 #define USE_USB_MSC
 #define USE_RTC_TIME
 #define USE_PERSISTENT_MSC_RTC
-#define USE_DSHOT_CACHE_MGMT
 #define USE_LATE_TASK_STATISTICS
 #endif
 
 #ifdef STM32G4
-#define USE_FAST_RAM
-#define USE_DSHOT
-#define USE_DSHOT_BITBANG
-#define USE_DSHOT_TELEMETRY
-#define USE_DSHOT_TELEMETRY_STATS
 #define USE_RPM_FILTER
 #define USE_DYN_IDLE
 #define USE_OVERCLOCK
@@ -247,10 +231,7 @@ extern uint8_t _dmaram_end__;
 #define DMA_RAM_RW
 #endif
 
-#define USE_BRUSHED_ESC_AUTODETECT  // Detect if brushed motors are connected and set defaults appropriately to avoid motors spinning on boot
-
 #define USE_MOTOR
-#define USE_PWM_OUTPUT
 #define USE_DMA
 #define USE_TIMER
 
@@ -258,100 +239,247 @@ extern uint8_t _dmaram_end__;
 #define USE_SERIAL_PASSTHROUGH
 #define USE_GYRO_REGISTER_DUMP  // Adds gyroregisters command to cli to dump configured register values
 #define USE_IMU_CALC
+
+// all the settings for classic build
+#if !defined(CLOUD_BUILD) && !defined(SITL)
+
+#define USE_MAG
+
+#if !defined(USE_BARO) && !defined(USE_FAKE_BARO)
+#define USE_BARO
+
+#define USE_BARO_MS5611
+#define USE_BARO_SPI_MS5611
+#define USE_BARO_BMP280
+#define USE_BARO_SPI_BMP280
+#define USE_BARO_BMP388
+#define USE_BARO_SPI_BMP388
+#define USE_BARO_LPS
+#define USE_BARO_SPI_LPS
+#define USE_BARO_QMP6988
+#define USE_BARO_SPI_QMP6988
+#define USE_BARO_DPS310
+#define USE_BARO_SPI_DPS310
+#define USE_BARO_BMP085
+#define USE_BARO_2SMBP_02B
+#define USE_BARO_SPI_2SMBP_02B
+#endif
+
+#if !defined(USE_GYRO) && !defined(USE_ACC)
+#define USE_ACC
+#define USE_GYRO
+
+#define USE_ACC_MPU6500
+#define USE_GYRO_MPU6500
+#define USE_ACC_SPI_MPU6000
+#define USE_GYRO_SPI_MPU6000
+#define USE_ACC_SPI_MPU6500
+#define USE_GYRO_SPI_MPU6500
+#define USE_ACC_SPI_ICM20689
+#define USE_GYRO_SPI_ICM20689
+#define USE_ACCGYRO_LSM6DSO
+#define USE_ACCGYRO_BMI270
+#define USE_GYRO_SPI_ICM42605
+#define USE_GYRO_SPI_ICM42688P
+#define USE_ACC_SPI_ICM42605
+#define USE_ACC_SPI_ICM42688P
+
+#if defined(STM32F405) || defined(STM32F745) || defined(STM32G4) || defined(STM32H7)
+#define USE_ACC_MPU6050
+#define USE_GYRO_MPU6050
+#define USE_ACCGYRO_BMI160
+#endif
+#endif
+
+#if !defined(USE_EXST) && !defined(USE_FLASH)
+#define USE_FLASHFS
+
+#define USE_FLASH_TOOLS
+#define USE_FLASH_M25P16
+#define USE_FLASH_W25N01G    // 1Gb NAND flash support
+#define USE_FLASH_W25M       // Stacked die support
+#define USE_FLASH_W25M512    // 512Kb (256Kb x 2 stacked) NOR flash support
+#define USE_FLASH_W25M02G    // 2Gb (1Gb x 2 stacked) NAND flash support
+#define USE_FLASH_W25Q128FV  // 16MB Winbond 25Q128
+
+#endif
+
+#ifndef USE_MAX7456
+#define USE_MAX7456
+#endif
+
+#if !defined(USE_RX_SPI)
+#define USE_RX_SPI
+
+#define USE_RX_CC2500
+#define USE_RX_EXPRESSLRS
+#define USE_RX_SX1280
+#define USE_RX_SX127X
+#endif // !USE_RX_SPI
+
+#if !defined(USE_EXST) && !defined(USE_SDCARD)
+#define USE_SDCARD
+#endif
+
+#if defined(STM32F405) || defined(STM32F745) || defined(STM32H7)
+#define USE_VTX_RTC6705
+#define USE_VTX_RTC6705_SOFTSPI
+
+#define USE_TRANSPONDER
+
+#define USE_RANGEFINDER
+#define USE_RANGEFINDER_HCSR04
+#define USE_RANGEFINDER_TF
+#endif
+
 #define USE_PPM
-#define USE_SERIAL_RX
+
+#define USE_BRUSHED_ESC_AUTODETECT  // Detect if brushed motors are connected and set defaults appropriately to avoid motors spinning on boot
+#define USE_PWM
+
+#define USE_PINIO
+
+#if !defined(USE_SERIAL_RX)
+#define USE_SERIALRX
 #define USE_SERIALRX_CRSF       // Team Black Sheep Crossfire protocol
 #define USE_SERIALRX_GHST       // ImmersionRC Ghost Protocol
 #define USE_SERIALRX_IBUS       // FlySky and Turnigy receivers
 #define USE_SERIALRX_SBUS       // Frsky and Futaba receivers
 #define USE_SERIALRX_SPEKTRUM   // SRXL, DSM2 and DSMX protocol
-#define USE_SERIALRX_SUMD       // Graupner Hott protocol
+#define USE_SERIALRX_FPORT      // FrSky FPort
+#define USE_SERIALRX_XBUS       // JR
+#define USE_SERIALRX_SRXL2      // Spektrum SRXL2 protocol
+#endif // !defined(USE_SERIAL_RX)
 
-#if (TARGET_FLASH_SIZE > 128)
-#define PID_PROFILE_COUNT 3
-#define CONTROL_RATE_PROFILE_COUNT  6
-#else
-#define PID_PROFILE_COUNT 2
-#define CONTROL_RATE_PROFILE_COUNT  3
-#endif
-
-#if (TARGET_FLASH_SIZE > 64)
-#define USE_ACRO_TRAINER
-#define USE_BLACKBOX
-#define USE_CLI_BATCH
-#define USE_RESOURCE_MGMT
-#define USE_RUNAWAY_TAKEOFF     // Runaway Takeoff Prevention (anti-taz)
-#define USE_SERVOS
+#if !defined(USE_TELEMETRY)
 #define USE_TELEMETRY
+
 #define USE_TELEMETRY_FRSKY_HUB
 #define USE_TELEMETRY_SMARTPORT
-#endif
-
-#if (TARGET_FLASH_SIZE > 128)
-#define USE_GYRO_OVERFLOW_CHECK
-#define USE_YAW_SPIN_RECOVERY
-#define USE_DSHOT_DMAR
-#define USE_SERIALRX_FPORT      // FrSky FPort
 #define USE_TELEMETRY_CRSF
 #define USE_TELEMETRY_GHST
 #define USE_TELEMETRY_SRXL
+#define USE_CRSF_CMS_TELEMETRY
+#define USE_CRSF_LINK_STATISTICS
 
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 12))
-#define USE_CMS
-#define USE_MSP_DISPLAYPORT
-#define USE_MSP_OVER_TELEMETRY
-#define USE_OSD_OVER_MSP_DISPLAYPORT
+#endif // !defined(USE_TELEMETRY)
+
+#define USE_SERVOS
+
+#define USE_VTX
+#define USE_OSD
+#define USE_OSD_SD
+#define USE_OSD_HD
+#define USE_BLACKBOX
+
+#if TARGET_FLASH_SIZE > 512
+
+#if defined(USE_SERIALRX)
+
+#define USE_SERIALRX_JETIEXBUS
+#define USE_SERIALRX_SUMD       // Graupner Hott protocol
+#define USE_SERIALRX_SUMH       // Graupner legacy protocol
+
+#endif // USE_SERIALRX
+
+#if defined(USE_TELEMETRY)
+
+#define USE_TELEMETRY_IBUS
+#define USE_TELEMETRY_IBUS_EXTENDED
+#define USE_TELEMETRY_JETIEXBUS
+#define USE_TELEMETRY_MAVLINK
+#define USE_TELEMETRY_HOTT
+#define USE_TELEMETRY_LTM
+
+#endif // USE_TELEMETRY
+
+#define USE_BATTERY_CONTINUE
+#define USE_DASHBOARD
+#define USE_EMFAT_AUTORUN
+#define USE_EMFAT_ICON
+#define USE_ESCSERIAL_SIMONK
+#define USE_GPS
+#define USE_GPS_PLUS_CODES
 #define USE_LED_STRIP
+#define USE_SERIAL_4WAY_SK_BOOTLOADER
 #endif
 
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 11))
+#endif // !defined(CLOUD_BUILD)
+
+#if !defined(LED_MAX_STRIP_LENGTH)
+#ifdef USE_LEDSTRIP_64
+#define LED_MAX_STRIP_LENGTH           64
+#else
+#define LED_MAX_STRIP_LENGTH           32
+#endif
+#endif // # !defined(LED_MAX_STRIP_LENGTH)
+
+#if defined(USE_SDCARD)
+#define USE_SDCARD_SPI
+#if defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
+#define USE_SDCARD_SDIO
+#endif
+#endif
+
+#if defined(USE_SDCARD) || defined(USE_FLASH)
+#if !defined(USE_BLACKBOX)
+#define USE_BLACKBOX
+#endif
+#endif
+
+#if defined(USE_PINIO)
+#define USE_PINIOBOX
+#define USE_PIN_PULL_UP_DOWN
+#endif
+
+#if defined(USE_VTX)
 #define USE_VTX_COMMON
 #define USE_VTX_CONTROL
 #define USE_VTX_SMARTAUDIO
 #define USE_VTX_TRAMP
+#define USE_VTX_MSP
+#define USE_VTX_TABLE
+#endif // USE_VTX
+
+#define USE_HUFFMAN
+
+#define PID_PROFILE_COUNT 4
+#define CONTROL_RATE_PROFILE_COUNT  4
+
+#define USE_ACRO_TRAINER
+#define USE_CLI_BATCH
+#define USE_RESOURCE_MGMT
+
+#define USE_RUNAWAY_TAKEOFF     // Runaway Takeoff Prevention (anti-taz)
+
+#define USE_GYRO_OVERFLOW_CHECK
+#define USE_YAW_SPIN_RECOVERY
+
+#ifdef USE_DSHOT
+#define USE_DSHOT_DMAR
 #endif
 
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 10))
+#define USE_MSP_OVER_TELEMETRY
+
 #define USE_VIRTUAL_CURRENT_METER
 #define USE_CAMERA_CONTROL
 #define USE_ESC_SENSOR
 #define USE_SERIAL_4WAY_BLHELI_BOOTLOADER
 #define USE_RCDEVICE
-#endif
 
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 9))
 #define USE_GYRO_LPF2
-#endif
-
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 8))
 #define USE_LAUNCH_CONTROL
 #define USE_DYN_LPF
 #define USE_D_MIN
-#endif
 
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 7))
 #define USE_THROTTLE_BOOST
 #define USE_INTEGRATED_YAW_CONTROL
-#endif
 
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 6))
 #define USE_ITERM_RELAX
 #define USE_RC_SMOOTHING_FILTER
 #define USE_THRUST_LINEARIZATION
 #define USE_TPA_MODE
-#endif
 
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 5))
-#define USE_PWM
-#endif
-
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 4))
-#define USE_HUFFMAN
-#define USE_PINIO
-#define USE_PINIOBOX
-#endif
-
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 3))
 #ifdef USE_SERIALRX_SPEKTRUM
 #define USE_SPEKTRUM_BIND
 #define USE_SPEKTRUM_BIND_PLUG
@@ -361,80 +489,89 @@ extern uint8_t _dmaram_end__;
 #define USE_SPEKTRUM_VTX_CONTROL
 #define USE_SPEKTRUM_VTX_TELEMETRY
 #define USE_SPEKTRUM_CMS_TELEMETRY
-#define USE_PIN_PULL_UP_DOWN
-#endif
-#endif
+#endif // USE_SERIALRX_SPEKTRUM
 
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 2))
-#define USE_TELEMETRY_HOTT
-#define USE_TELEMETRY_LTM
-#define USE_SERIALRX_SUMH       // Graupner legacy protocol
-#define USE_SERIALRX_XBUS       // JR
-#endif
-
-#if ((TARGET_FLASH_SIZE > 256) || (FEATURE_CUT_LEVEL < 1))
 #define USE_BOARD_INFO
 #define USE_EXTENDED_CMS_MENUS
 #define USE_RTC_TIME
-#define USE_RX_MSP
 #define USE_ESC_SENSOR_INFO
-#define USE_CRSF_CMS_TELEMETRY
-#define USE_CRSF_LINK_STATISTICS
+
+#define USE_RX_MSP
 #define USE_RX_RSSI_DBM
-#endif
+#define USE_RX_RSNR
+#define USE_RX_LINK_QUALITY_INFO
+#define USE_RX_MSP_OVERRIDE
+#define USE_RX_LINK_UPLINK_POWER
 
-#endif // TARGET_FLASH_SIZE > 128
-
-#if (TARGET_FLASH_SIZE > 256)
 #define USE_AIRMODE_LPF
 #define USE_CANVAS
 #define USE_FRSKYOSD
-#define USE_GPS
-#define USE_GPS_NMEA
-#define USE_GPS_UBLOX
-#define USE_GPS_RESCUE
 #define USE_GYRO_DLPF_EXPERIMENTAL
-#define USE_OSD
-#define USE_OSD_OVER_MSP_DISPLAYPORT
 #define USE_MULTI_GYRO
-#define USE_OSD_ADJUSTMENTS
 #define USE_SENSOR_NAMES
-#define USE_SERIALRX_JETIEXBUS
-#define USE_TELEMETRY_IBUS
-#define USE_TELEMETRY_IBUS_EXTENDED
-#define USE_TELEMETRY_JETIEXBUS
-#define USE_TELEMETRY_MAVLINK
 #define USE_UNCOMMON_MIXERS
 #define USE_SIGNATURE
 #define USE_ABSOLUTE_CONTROL
 #define USE_HOTT_TEXTMODE
 #define USE_LED_STRIP_STATUS_MODE
 #define USE_VARIO
-#define USE_RX_LINK_QUALITY_INFO
 #define USE_ESC_SENSOR_TELEMETRY
-#define USE_OSD_PROFILES
-#define USE_OSD_STICK_OVERLAY
 #define USE_CMS_FAILSAFE_MENU
 #define USE_CMS_GPS_RESCUE_MENU
 #define USE_TELEMETRY_SENSORS_DISABLED_DETAILS
-#define USE_VTX_TABLE
 #define USE_PERSISTENT_STATS
 #define USE_PROFILE_NAMES
-#define USE_SERIALRX_SRXL2     // Spektrum SRXL2 protocol
 #define USE_FEEDFORWARD
 #define USE_CUSTOM_BOX_NAMES
 #define USE_BATTERY_VOLTAGE_SAG_COMPENSATION
-#define USE_RX_MSP_OVERRIDE
 #define USE_SIMPLIFIED_TUNING
-#define USE_RX_LINK_UPLINK_POWER
 #define USE_CRSF_V3
+#define USE_CRAFTNAME_MSGS
+
+#ifdef USE_GPS
+#define USE_GPS_NMEA
+#define USE_GPS_UBLOX
+#define USE_GPS_RESCUE
+#endif // USE_GPS
+
+#if defined(USE_OSD_HD) || defined(USE_OSD_SD)
+// If either USE_OSD_SD for USE_OSD_HD are defined, ensure that USE_OSD is also defined
+#ifndef USE_OSD
+#define USE_OSD
+#endif
 #endif
 
-#if (TARGET_FLASH_SIZE > 512)
-#define USE_ESCSERIAL_SIMONK
-#define USE_SERIAL_4WAY_SK_BOOTLOADER
-#define USE_DASHBOARD
-#define USE_EMFAT_AUTORUN
-#define USE_EMFAT_ICON
-#define USE_GPS_PLUS_CODES
+#ifdef USE_OSD
+
+#if !defined(USE_OSD_HD) && !defined(USE_OSD_SD)
+// If USE_OSD is defined without specifying SD or HD, then support both
+#define USE_OSD_SD
+#define USE_OSD_HD
 #endif
+
+#if !defined(USE_OSD_SD) && defined(USE_MAX7456)
+// If USE_OSD_SD isn't defined then explicitly exclude MAX7456 support
+#undef USE_MAX7456
+#endif
+
+#define USE_CMS
+#define USE_MSP_DISPLAYPORT
+#define USE_OSD_OVER_MSP_DISPLAYPORT
+#define USE_OSD_ADJUSTMENTS
+#define USE_OSD_PROFILES
+#define USE_OSD_STICK_OVERLAY
+#endif // defined(USE_OSD) || defined(USE_OSD_HD) || defined(USE_OSD_SD)
+
+#if defined(CLOUD_BUILD)
+// Handle the CRSF co-dependency requirements
+#if defined(USE_TELEMETRY_CRSF) 
+
+// if both CRSF and CMS then enable CMS telemtry and link statistics
+#if defined(USE_CMS)
+#define USE_CRSF_CMS_TELEMETRY
+#define USE_CRSF_LINK_STATISTICS
+#endif  // USE_CMS
+
+#endif // USE_TELEMETRY_CRSF (CRSF co-dependency requirements).
+
+#endif // CLOUD_BUILD
