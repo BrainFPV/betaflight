@@ -50,6 +50,9 @@
 #define USE_OSD_HD
 #define USE_BLACKBOX
 
+#define USE_GPS
+#define USE_LED_STRIP
+
 #if TARGET_FLASH_SIZE > 512
 #define USE_SERIALRX_JETIEXBUS
 #define USE_SERIALRX_SUMD       // Graupner Hott protocol
@@ -67,8 +70,6 @@
 #define USE_EMFAT_AUTORUN
 #define USE_EMFAT_ICON
 #define USE_ESCSERIAL_SIMONK
-#define USE_GPS
 #define USE_GPS_PLUS_CODES
-#define USE_LED_STRIP
 #define USE_SERIAL_4WAY_SK_BOOTLOADER
 #endif
