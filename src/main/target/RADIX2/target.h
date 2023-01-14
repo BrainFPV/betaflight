@@ -52,7 +52,6 @@
 #define BRAINFPVFPGA_CLOCK_PIN    PA8
 
 
-#define BRAINFPV
 #define USE_MAX7456
 #define USE_OSD
 #define USE_CMS
@@ -171,11 +170,6 @@
 #define I2C_DEVICE              (I2CDEV_1)
 
 #define USE_MAG
-#define USE_MAG_HMC5883
-#define USE_MAG_QMC5883
-#define USE_MAG_LIS3MDL
-#define USE_MAG_AK8963
-#define USE_MAG_AK8975
 #define MAG_I2C_INSTANCE      I2C_DEVICE
 
 #define USE_FLASHFS
