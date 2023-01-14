@@ -69,7 +69,6 @@
 #define USE_BRAINFPV_IR_TRANSPONDER
 #define USE_BRAINFPV_FPGA_BUZZER
 
-#define BRAINFPV
 #define USE_MAX7456
 #define USE_OSD
 #define USE_CMS

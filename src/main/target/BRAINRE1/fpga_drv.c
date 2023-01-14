@@ -307,7 +307,7 @@ static int32_t BRAINFPVFPGA_WriteRegDirect(enum re1fpga_register reg, uint8_t da
 /**
  * @brief Get the Hardware
  */
-uint8_t BRAINFPVFPGA_GetHWRevision()
+uint8_t BRAINFPVFPGA_GetHWRevision(void)
 {
     return shadow_reg.reg_hwrev;
 }
@@ -437,7 +437,7 @@ int32_t BRAINFPVFPGA_Buzzer(bool enable)
 /**
  * @brief Toggle buzzer
  */
-int32_t BRAINFPVFPGA_BuzzerToggle()
+int32_t BRAINFPVFPGA_BuzzerToggle(void)
 {
     uint8_t data = shadow_reg.reg_ctl ^ 0x01;
     return BRAINFPVFPGA_WriteReg(BRAINFPVFPGA_REG_CTL, data, 0x01);
