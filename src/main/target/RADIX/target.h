@@ -31,7 +31,6 @@
 #define STM32_ST_USE_TIMER                  4
 
 #define USE_TARGET_CONFIG
-#undef USE_CUSTOM_DEFAULTS_ADDRESS
 
 #define LED0_PIN                PA4
 #define LED1_PIN                NONE

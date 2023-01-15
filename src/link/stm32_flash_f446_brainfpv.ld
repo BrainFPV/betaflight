@@ -19,7 +19,10 @@
 /* Specify the memory areas */
 MEMORY
 {
-    FLASH (rx)        : ORIGIN = 0x08000000, LENGTH = 16K
+    FLASH_00 (rx)             : ORIGIN = 0x08000000, LENGTH = 10K
+    FLASH_CUSTOM_DEFAULTS (r) : ORIGIN = 0x08002800, LENGTH = 8 /* Only space for start and end address to indicate it is not supported */
+    FLASH_01 (rx)             : ORIGIN = 0x08002808, LENGTH = 6K - 8
+
     FLASH_CONFIG (r)  : ORIGIN = 0x08004000, LENGTH = 16K
     FLASH1 (rx)       : ORIGIN = 0x08008000, LENGTH = 480K
 
@@ -72,19 +75,48 @@ SECTIONS
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
     PROVIDE (isr_vector_table_end = .);
-  } >VECTAB AT> FLASH
+  } >VECTAB AT> FLASH_00
 
   startup : ALIGN(4)
   {
     KEEP(*(.text.Reset_Handler)) /* Startup code */
-  } > FLASH
+  } > FLASH_00
 
-  /* OSD images */
-  images : ALIGN(4)
+  /* OSD main logo image */
+  /*
+  *main_image : ALIGN(4)
+  *{
+  *  KEEP(*(.main_image_section))
+  *} > FLASH_00
+  */
+
+  /* Some fonts */
+  osd_fonts : ALIGN(4)
   {
-    KEEP(*(.images_section))
-  } > FLASH
-    
+    KEEP(*(.font8x10_font_section))
+    KEEP(*(.font_outlined8x8_font_section))
+  } > FLASH_00
+
+  /* Custom defaults area indicating that it is not suppported (start address is same as end address)*/
+  .custom_defaults :
+  {
+    LONG(0x08002808);
+    LONG(0x08002808);
+  } >FLASH_CUSTOM_DEFAULTS
+
+  /* OSD user image */
+  user_image : ALIGN(4)
+  {
+    KEEP(*(.user_image_section))
+  } > FLASH_01
+
+  /* Other fonts */
+  osd_fonts : ALIGN(4)
+  {
+    KEEP(*(.font8x10_font_section))
+    KEEP(*(.font_outlined8x8_font_section))
+  } > FLASH_00
+
   /* System memory (read-only bootloader) interrupt vector */
   .system_isr_vector (NOLOAD) :
   {
@@ -114,7 +146,7 @@ SECTIONS
   } >FLASH1
 
 
-   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
+   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH_00
     .ARM : {
     __exidx_start = .;
       *(.ARM.exidx*)
