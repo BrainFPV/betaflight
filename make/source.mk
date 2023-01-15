@@ -461,7 +461,8 @@ SRC += brainfpv/brainfpv_system.c \
        brainfpv/brainfpv_osd.c \
        brainfpv/video_quadspi.c \
        brainfpv/osd_utils.c \
-       brainfpv/fonts.c \
+       brainfpv/fonts_stm32f4xx.c \
+       brainfpv/fonts_stm32h7xx.c \
        brainfpv/images.c \
        brainfpv/video_quadspi.c \
        brainfpv/ir_transponder.c \

@@ -91,8 +91,11 @@ static const void *menuBrainFPVOnExit(displayPort_t *pDisp, const OSD_Entry *sel
 OSD_UINT8_t entryAhiSteps =  {&bfOsdConfigCms.ahi_steps, 0, 9, 1};
 const char *STICKS_DISPLAY_NAMES[] = {"OFF", "MODE2", "MODE1"};
 OSD_TAB_t entrySticksDisplay = {&bfOsdConfigCms.sticks_display, 2, &STICKS_DISPLAY_NAMES[0]};
+
+#if (NUM_USER_FONTS > 1)
 const char *FONT_NAMES[] = {"DEFAULT", "LARGE", "BOLD"};
 OSD_TAB_t entryOSDFont = {&bfOsdConfigCms.font, 2, &FONT_NAMES[0]};
+#endif
 
 #if defined(BRAINFPV_OSD_WHITE_LEVEL_MIN)
 OSD_UINT8_t entryWhiteLevel =  {&bfOsdConfigCms.white_level, BRAINFPV_OSD_WHITE_LEVEL_MIN, BRAINFPV_OSD_WHITE_LEVEL_MAX, 1};
@@ -119,7 +122,9 @@ OSD_Entry cmsx_menuBrainFPVOsdEntries[] =
     {"MAP", OME_Bool, NULL, &bfOsdConfigCms.map},
     {"MAP MAX DIST M", OME_UINT16, NULL, &entryMapMaxDist},
     {"SHOW STICKS", OME_TAB, NULL, &entrySticksDisplay},
+#if (NUM_USER_FONTS > 1)
     {"FONT", OME_TAB, NULL, &entryOSDFont},
+#endif
 #if defined(BRAINFPV_OSD_WHITE_LEVEL_MIN)
     {"OSD WHITE", OME_UINT8, NULL, &entryWhiteLevel},
     {"OSD BLACK", OME_UINT8, NULL, &entryBlackLevel},

@@ -1,3 +1,4 @@
+
 /*
  * This file is part of Cleanflight and Betaflight.
  *
@@ -18,19 +19,26 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FONTS_H
-#define FONTS_H
 
-#include "platform.h"
 
-#if defined(STM32F4)
-#include "fonts_stm32f4xx.h"
-#elif defined(STM32H7)
-#include "fonts_stm32h7xx.h"
-#else
-#error "Unknown CPU"
-#endif
+#ifndef FONTS_ARCH_H
+#define FONTS_ARCH_H
 
-#define NUM_USER_FONTS (NUM_FONTS - 2)
+#include <stdint.h>
 
-#endif /* FONTS_H */
+
+struct FontEntry {
+	uint8_t width;
+	uint8_t height;
+	const uint8_t* lookup;
+	const uint16_t* data;
+};
+
+#define NUM_FONTS  3
+
+#define BETAFLIGHT_DEFAULT 0
+#define FONT8X10 1
+#define FONT_OUTLINED8X8 2
+
+
+#endif /* FONTS_ARCH_H */
