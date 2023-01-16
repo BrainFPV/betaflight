@@ -1525,6 +1525,10 @@ bool brainFPVOsdUpdate(timeUs_t currentTimeUs)
         showVisualBeeper = true;
     }
 
+    if (!ARMING_FLAG(ARMED) && osdShowArming) {
+        osdShowArming = false;
+    }
+
     osdProcessStats1(currentTimeUs);
     osdProcessStats2(currentTimeUs);
     osdProcessStats3(currentTimeUs);
