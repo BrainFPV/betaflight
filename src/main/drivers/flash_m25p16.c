@@ -367,6 +367,8 @@ static void m25p16_eraseSector(flashDevice_t *fdevice, uint32_t address)
 #ifdef USE_QUADSPI
 static void m25p16_eraseSectorQspi(flashDevice_t *fdevice, uint32_t address)
 {
+    address = TRANSLATE_ADDR(fdevice, address);
+
     m25p16_waitForReady(fdevice);
 
     quadSpiTransmit1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_WRITE_ENABLE, 0, NULL, 0);
@@ -616,6 +618,8 @@ static int m25p16_readBytes(flashDevice_t *fdevice, uint32_t address, uint8_t *b
 
 static int m25p16_readBytesQspi(flashDevice_t *fdevice, uint32_t address, uint8_t *buffer, uint32_t length)
 {
+    address = TRANSLATE_ADDR(fdevice, address);
+
     m25p16_waitForReady(fdevice);
 
     quadSpiReceiveWithAddress4LINES(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_QUAD_READ, M25P16_FAST_READ_DUMMY_CYCLES,
