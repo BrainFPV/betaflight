@@ -332,14 +332,15 @@ extern uint8_t _dmaram_end__;
 #define USE_RANGEFINDER_TF
 #endif
 
-#define USE_PPM
+#define USE_RX_PPM
+#define USE_RX_PWM
 
 #define USE_BRUSHED_ESC_AUTODETECT  // Detect if brushed motors are connected and set defaults appropriately to avoid motors spinning on boot
-#define USE_PWM
 
 #define USE_PINIO
 
 #if !defined(USE_SERIAL_RX)
+
 #define USE_SERIALRX
 #define USE_SERIALRX_CRSF       // Team Black Sheep Crossfire protocol
 #define USE_SERIALRX_GHST       // ImmersionRC Ghost Protocol
@@ -349,6 +350,7 @@ extern uint8_t _dmaram_end__;
 #define USE_SERIALRX_FPORT      // FrSky FPort
 #define USE_SERIALRX_XBUS       // JR
 #define USE_SERIALRX_SRXL2      // Spektrum SRXL2 protocol
+
 #endif // !defined(USE_SERIAL_RX)
 
 #if !defined(USE_TELEMETRY)
@@ -359,8 +361,6 @@ extern uint8_t _dmaram_end__;
 #define USE_TELEMETRY_CRSF
 #define USE_TELEMETRY_GHST
 #define USE_TELEMETRY_SRXL
-#define USE_CRSF_CMS_TELEMETRY
-#define USE_CRSF_LINK_STATISTICS
 
 #endif // !defined(USE_TELEMETRY)
 
@@ -419,6 +419,10 @@ extern uint8_t _dmaram_end__;
 #endif
 #endif // # !defined(LED_MAX_STRIP_LENGTH)
 
+#if defined(USE_LED_STRIP)
+#define USE_LED_STRIP_STATUS_MODE
+#endif
+
 #if defined(USE_SDCARD)
 #define USE_SDCARD_SPI
 #if defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
@@ -426,10 +430,8 @@ extern uint8_t _dmaram_end__;
 #endif
 #endif
 
-#if defined(USE_SDCARD) || defined(USE_FLASH)
-#if !defined(USE_BLACKBOX)
+#if (defined(USE_SDCARD) || defined(USE_FLASH)) && !defined(USE_BLACKBOX)
 #define USE_BLACKBOX
-#endif
 #endif
 
 #if defined(USE_PINIO)
@@ -451,7 +453,6 @@ extern uint8_t _dmaram_end__;
 #define PID_PROFILE_COUNT 4
 #define CONTROL_RATE_PROFILE_COUNT  4
 
-#define USE_ACRO_TRAINER
 #define USE_CLI_BATCH
 #define USE_RESOURCE_MGMT
 
@@ -467,13 +468,11 @@ extern uint8_t _dmaram_end__;
 #define USE_MSP_OVER_TELEMETRY
 
 #define USE_VIRTUAL_CURRENT_METER
-#define USE_CAMERA_CONTROL
 #define USE_ESC_SENSOR
 #define USE_SERIAL_4WAY_BLHELI_BOOTLOADER
 #define USE_RCDEVICE
 
 #define USE_GYRO_LPF2
-#define USE_LAUNCH_CONTROL
 #define USE_DYN_LPF
 #define USE_D_MIN
 
@@ -497,7 +496,6 @@ extern uint8_t _dmaram_end__;
 #endif // USE_SERIALRX_SPEKTRUM
 
 #define USE_BOARD_INFO
-#define USE_EXTENDED_CMS_MENUS
 #define USE_RTC_TIME
 #define USE_ESC_SENSOR_INFO
 
@@ -509,8 +507,6 @@ extern uint8_t _dmaram_end__;
 #define USE_RX_LINK_UPLINK_POWER
 
 #define USE_AIRMODE_LPF
-#define USE_CANVAS
-#define USE_FRSKYOSD
 #define USE_GYRO_DLPF_EXPERIMENTAL
 #define USE_MULTI_GYRO
 #define USE_SENSOR_NAMES
@@ -518,11 +514,7 @@ extern uint8_t _dmaram_end__;
 #define USE_SIGNATURE
 #define USE_ABSOLUTE_CONTROL
 #define USE_HOTT_TEXTMODE
-#define USE_LED_STRIP_STATUS_MODE
-#define USE_VARIO
 #define USE_ESC_SENSOR_TELEMETRY
-#define USE_CMS_FAILSAFE_MENU
-#define USE_CMS_GPS_RESCUE_MENU
 #define USE_TELEMETRY_SENSORS_DISABLED_DETAILS
 #define USE_PERSISTENT_STATS
 #define USE_PROFILE_NAMES
@@ -530,8 +522,8 @@ extern uint8_t _dmaram_end__;
 #define USE_CUSTOM_BOX_NAMES
 #define USE_BATTERY_VOLTAGE_SAG_COMPENSATION
 #define USE_SIMPLIFIED_TUNING
-#define USE_CRSF_V3
 #define USE_CRAFTNAME_MSGS
+
 
 #ifdef USE_GPS
 #define USE_GPS_NMEA
@@ -539,14 +531,14 @@ extern uint8_t _dmaram_end__;
 #define USE_GPS_RESCUE
 #endif // USE_GPS
 
-#if defined(USE_OSD_HD) || defined(USE_OSD_SD)
+
+#if (defined(USE_OSD_HD) || defined(USE_OSD_SD)) && !defined(USE_OSD)
 // If either USE_OSD_SD for USE_OSD_HD are defined, ensure that USE_OSD is also defined
-#ifndef USE_OSD
 #define USE_OSD
 #endif
-#endif
 
-#ifdef USE_OSD
+
+#if defined(USE_OSD)
 
 #if !defined(USE_OSD_HD) && !defined(USE_OSD_SD)
 // If USE_OSD is defined without specifying SD or HD, then support both
@@ -559,24 +551,30 @@ extern uint8_t _dmaram_end__;
 #undef USE_MAX7456
 #endif
 
+#define USE_CANVAS
 #define USE_CMS
+#define USE_CMS_FAILSAFE_MENU
+#define USE_EXTENDED_CMS_MENUS
 #define USE_MSP_DISPLAYPORT
 #define USE_OSD_OVER_MSP_DISPLAYPORT
 #define USE_OSD_ADJUSTMENTS
 #define USE_OSD_PROFILES
 #define USE_OSD_STICK_OVERLAY
-#endif // defined(USE_OSD) || defined(USE_OSD_HD) || defined(USE_OSD_SD)
 
-#if defined(CLOUD_BUILD)
-// Handle the CRSF co-dependency requirements
-#if defined(USE_TELEMETRY_CRSF) 
+#if defined(USE_GPS)
+#define USE_CMS_GPS_RESCUE_MENU
+#endif
 
-// if both CRSF and CMS then enable CMS telemtry and link statistics
-#if defined(USE_CMS)
+#endif // defined(USE_OSD)
+
+
+#if defined(USE_SERIALRX_CRSF)
+
+#define USE_CRSF_V3
+
+#if defined(USE_TELEMETRY_CRSF) && defined(USE_CMS)
 #define USE_CRSF_CMS_TELEMETRY
 #define USE_CRSF_LINK_STATISTICS
-#endif  // USE_CMS
+#endif
 
-#endif // USE_TELEMETRY_CRSF (CRSF co-dependency requirements).
-
-#endif // CLOUD_BUILD
+#endif // defined(USE_SERIALRX_CRSF)

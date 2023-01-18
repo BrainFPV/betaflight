@@ -360,7 +360,7 @@ static void validateAndFixConfig(void)
     } else
 #endif
     if (rxConfigMutable()->rssi_channel
-#if defined(USE_PWM) || defined(USE_PPM)
+#if defined(USE_RX_PWM) || defined(USE_RX_PPM)
         || featureIsConfigured(FEATURE_RX_PPM) || featureIsConfigured(FEATURE_RX_PARALLEL_PWM)
 #endif
         ) {
@@ -423,7 +423,7 @@ static void validateAndFixConfig(void)
 // clear features that are not supported.
 // I have kept them all here in one place, some could be moved to sections of code above.
 
-#ifndef USE_PPM
+#ifndef USE_RX_PPM
     featureDisableImmediate(FEATURE_RX_PPM);
 #endif
 
