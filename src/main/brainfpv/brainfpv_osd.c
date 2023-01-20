@@ -106,6 +106,9 @@
 
 #include "pg/rx.h"
 
+#define BRAINFPV_VIDEO_LINES_NTSC  12
+#define BRAINFPV_VIDEO_LINES_PAL   15
+
 
 PG_REGISTER_WITH_RESET_TEMPLATE(bfOsdConfig_t, bfOsdConfig, PG_BRAINFPV_OSD_CONFIG, 0);
 
@@ -298,9 +301,9 @@ bool  max7456WriteNvm(uint8_t char_address, const uint8_t *font_data)
 uint8_t max7456GetRowsCount(void)
 {
     if (Video_GetType() == VIDEO_TYPE_NTSC)
-        return VIDEO_LINES_NTSC;
+        return BRAINFPV_VIDEO_LINES_NTSC;
     else
-        return VIDEO_LINES_PAL;
+        return BRAINFPV_VIDEO_LINES_PAL;
 }
 
 void max7456Write(uint8_t x, uint8_t y, const char *buff)
@@ -563,6 +566,7 @@ static void osd_draw_test_pattern(void) {
 #define IS_MID(X) (rcData[X] > 1250 && rcData[X] < 1750)
 
 void osdMain(void) {
+    static bool line_count_updated = false;
     uint32_t draw_cnt = 0;
     uint32_t currentTime;
 #if defined(USE_BRAINFPV_SPECTROGRAPH)
@@ -629,6 +633,10 @@ void osdMain(void) {
             brainFpvOsdWelcome();
         }
         else {
+            if (!line_count_updated) {
+                max7456DisplayPort.rows = max7456GetRowsCount();
+                line_count_updated = true;
+            }
             switch (mode) {
                 case MODE_BETAFLIGHT:
                     if ((draw_cnt % 20 == 0) || cmsInMenu) {
