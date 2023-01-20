@@ -301,7 +301,9 @@
 // Should be set to zero for generic targets to ensure USB is working
 // when unconfigured for targets with non-standard crystal.
 // Can be set at runtime with with CLI parameter 'system_hse_value'.
+#if !defined(SYSTEM_HSE_VALUE)
 #define SYSTEM_HSE_VALUE 0
+#endif
 
 // Number of pins that needs pre-init
 #ifdef USE_SPI
