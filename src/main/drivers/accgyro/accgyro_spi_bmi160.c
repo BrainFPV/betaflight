@@ -458,7 +458,6 @@ static bool bmi160GyroRead(gyroDev_t *gyro)
         gyro->gyroADCRaw[X] = gyroData[1];
         gyro->gyroADCRaw[Y] = gyroData[2];
         gyro->gyroADCRaw[Z] = gyroData[3];
-
         break;
     }
 
@@ -481,6 +480,7 @@ void bmi160SpiGyroInit(gyroDev_t *gyro)
     BMI160_Init(dev);
     bmi160IntExtiInit(gyro);
 
+    spiSetClkDivisor(dev, spiCalculateDivider(BMI160_MAX_SPI_CLK_HZ));
 }
 
 void bmi160SpiAccInit(accDev_t *acc)
