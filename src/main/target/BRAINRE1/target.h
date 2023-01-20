@@ -21,6 +21,9 @@
 
 #define TARGET_BOARD_IDENTIFIER "BRAINRE1"
 
+// Uses a 16 MHz oscillator
+#define SYSTEM_HSE_VALUE 16
+
 #define USBD_PRODUCT_STRING     "BrainRE1"
 
 // For ChibiOS

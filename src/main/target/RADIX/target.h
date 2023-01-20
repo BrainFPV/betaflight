@@ -21,6 +21,9 @@
 
 #define TARGET_BOARD_IDENTIFIER "RADIX"
 
+// Uses a 16 MHz oscillator
+#define SYSTEM_HSE_VALUE 16
+
 #define CONFIG_START_FLASH_ADDRESS (0x08004000) // 2nd 16kB sector
 
 #define USBD_PRODUCT_STRING     "BrainFPV RADIX"
