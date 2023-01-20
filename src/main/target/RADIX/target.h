@@ -55,6 +55,9 @@
 #define BRAINFPVFPGA_RESET_PIN    PC4
 #define USE_BRAINFPV_FPGA_BUZZER
 
+// MCO is configured by FPGA driver
+#undef USE_MCO
+
 #define USE_MAX7456
 #define USE_OSD
 #define USE_CMS
