@@ -797,6 +797,13 @@ static void cmsDrawMenu(displayPort_t *pDisplay, uint32_t currentTimeUs)
             }
 #endif
 
+#if defined(USE_BRAINFPV_OSD)
+            // Always render the cursor
+            if ((pDisplay == &max7456DisplayPort) && (i == pDisplay->cursorRow)) {
+                room -= cmsDisplayWrite(pDisplay, leftMenuColumn, top + currentCtx.cursorRow * linesPerMenuItem, DISPLAYPORT_ATTR_NORMAL, ">");
+            }
+#endif
+
 #if defined(BRAINFPV_OSD_CMS_FANCY_TITLE_FONT)
             if ((pDisplay == &max7456DisplayPort) && (i == 0)) {
                 brainFpvOsdSetTempFont(BRAINFPV_OSD_CMS_FANCY_TITLE_FONT);
