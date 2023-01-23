@@ -1158,6 +1158,7 @@ timeDelta_t osdShowArmed(void)
 #define GY (GRAPHICS_BOTTOM / 2 - 30)
         if (useBrainFPVOSD) {
             brainFpvOsdMainLogo(GRAPHICS_X_MIDDLE, GY);
+            ret = osdConfig()->logo_on_arming_duration * 1e5;
         }
         else {
             osdDrawLogo(midCol - (OSD_LOGO_COLS) / 2, midRow - 5);
