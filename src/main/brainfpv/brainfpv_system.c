@@ -159,6 +159,18 @@ void brainFPVSystemInit(void)
 #endif
 }
 
+#if defined(BRAINFPV_DEBUG_PIN)
+void debug_pin_high(void)
+{
+    IOHi(debugPin);
+}
+
+void debug_pin_low(void)
+{
+    IOLo(debugPin);
+}
+#endif
+
 #if defined(USE_BRAINFPV_BOOTLOADER)
 typedef struct __attribute__((packed)) {
     uint32_t target_magic;
