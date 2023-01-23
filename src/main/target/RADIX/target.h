@@ -28,6 +28,8 @@
 
 #define USBD_PRODUCT_STRING     "BrainFPV RADIX"
 
+//#define BRAINFPV_DEBUG_PIN      PB6
+
 // For ChibiOS
 // Priority needs to be lower than any of the BF interrupts that don't use CH_IRQ_EPILOGUE
 #define STM32_ST_IRQ_PRIORITY               8
@@ -153,6 +155,8 @@
 #define SPI1_SCK_PIN            PA5
 #define SPI1_MISO_PIN           PA6
 #define SPI1_MOSI_PIN           PA7
+#define SPI1_RX_DMA_OPT         1    // DMA 2 Stream 2 Channel 3
+#define SPI1_TX_DMA_OPT         1    // DMA 2 Stream 5 Channel 3
 
 #define USE_SPI_DEVICE_3
 #define SPI3_SCK_PIN            PB3
@@ -161,6 +165,7 @@
 
 #define BOARD_HAS_VOLTAGE_DIVIDER
 #define USE_ADC
+#define ADC1_DMA_OPT 0 // DMA2 Stream 0
 #define ADC_VOLTAGE_REFERENCE_MV 3245
 #define VBAT_ADC_PIN            PC1
 #define RSSI_ADC_PIN            PC3
@@ -177,7 +182,6 @@
 #define SDCARD_DETECT_INVERTED
 #define SDCARD_DETECT_PIN                   PB13
 #define SDCARD_SPI_CS_PIN                   PB15
-#define SPI1_TX_DMA_OPT                         0     // DMA 2 Stream 3 Channel 3
 
 #define DEFAULT_FEATURES        (FEATURE_OSD)
 #define SERIALRX_UART           SERIAL_PORT_USART3
@@ -194,7 +198,7 @@
 #define TARGET_IO_PORTD         (BIT(2))
 
 #define USE_DSHOT
-#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(5) | TIM_N(8) | TIM_N(12) )
+#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(5) | TIM_N(8) | TIM_N(12) )
 
 #undef USE_USB_MSC
 
