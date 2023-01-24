@@ -1198,6 +1198,7 @@ STATIC_UNIT_TESTED bool osdProcessStats1(timeUs_t currentTimeUs)
         if (ARMING_FLAG(ARMED)) {
             osdStatsEnabled = false;
             osdStatsVisible = false;
+            osdShowArming = true;
             osdResetStats();
             resumeRefreshAt = osdShowArmed() + currentTimeUs;
         } else if (isSomeStatEnabled()
