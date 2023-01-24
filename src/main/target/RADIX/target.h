@@ -202,7 +202,7 @@
 
 #undef USE_USB_MSC
 
-#undef USE_DSHOT_BITBANG
+#define DSHOT_BITBANG_DEFAULT DSHOT_BITBANG_OFF
 
 extern bool brainfpv_settings_updated_from_cms;
 void brainFPVUpdateSettings(void);
