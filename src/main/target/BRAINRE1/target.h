@@ -165,6 +165,7 @@
 #define SPI3_TX_DMA_OPT         -2
 #define SPI3_RX_DMA_OPT         -2
 
+
 #define USE_I2C
 #define USE_I2C_DEVICE_1
 #define USE_I2C_PULLUP
@@ -173,6 +174,7 @@
 
 #define BOARD_HAS_VOLTAGE_DIVIDER
 #define USE_ADC
+#define ADC1_DMA_OPT 1 // DMA2 Stream 4
 #define VBAT_ADC_PIN            PC0
 #define RSSI_ADC_PIN            PC3
 #define CURRENT_METER_ADC_PIN   PC1
@@ -198,7 +200,7 @@
 #define USE_DSHOT
 #define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(5) | TIM_N(12) )
 
-#undef USE_DSHOT_BITBANG
+#define DSHOT_BITBANG_DEFAULT DSHOT_BITBANG_OFF
 
 extern bool brainfpv_settings_updated_from_cms;
 void brainFPVUpdateSettings(void);
