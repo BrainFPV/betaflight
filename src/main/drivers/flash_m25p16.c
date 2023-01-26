@@ -166,10 +166,13 @@ static uint8_t m25p16_readStatus(flashDevice_t *fdevice)
         status = readyStatus[1];
     }
 #ifdef USE_QUADSPI
-        else if (fdevice->io.mode == FLASHIO_QUADSPI) {
-            quadSpiReceive1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_READ_STATUS_REG, 0, &status, 1);
-        }
+    else if (fdevice->io.mode == FLASHIO_QUADSPI) {
+        quadSpiReceive1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_READ_STATUS_REG, 0, &status, 1);
+    }
 #endif
+    else {
+        status = 0;
+    }
 
     return status;
 }
