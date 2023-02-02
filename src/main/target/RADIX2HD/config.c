@@ -36,7 +36,7 @@
 #include "pg/sdcard.h"
 
 static targetSerialPortFunction_t targetSerialPortFunction[] = {
-    { SERIAL_PORT_USART1, FUNCTION_MSP }, // Used for HD system
+    { SERIAL_PORT_USART1, FUNCTION_MSP | FUNCTION_VTX_MSP }, // Used for HD system
 };
 
 
