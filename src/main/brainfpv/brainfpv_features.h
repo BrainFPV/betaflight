@@ -48,8 +48,13 @@
 #define USE_OSD
 #define USE_OSD_SD
 #define USE_OSD_HD
-#define USE_BLACKBOX
+#define USE_VARIO
 
+#if defined(USE_BRAINFPV_OSD)
+#define USE_CAMERA_CONTROL
+#endif
+
+#define USE_BLACKBOX
 #define USE_GPS
 #define USE_LED_STRIP
 
