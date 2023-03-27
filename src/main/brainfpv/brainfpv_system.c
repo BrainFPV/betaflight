@@ -50,7 +50,6 @@ static BrainFPVSystemReq_t brainfpv_req = BRAINFPV_REQ_NONE;
 PG_RESET_TEMPLATE(brainFpvSystemConfig_t, brainFpvSystemConfig,
   .status_led_color = COLOR_BLUE,
   .status_led_brightness = 255,
-  .bmi_bwp_norm = 1,
   .dji_osd_warnings_info = 1,
   .dji_osd_rssi_use_lq = 1,
 );
