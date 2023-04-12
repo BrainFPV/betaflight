@@ -348,7 +348,7 @@ TARGET_OBJS     = $(addsuffix .o,$(addprefix $(TARGET_OBJ_DIR)/,$(basename $(SRC
 TARGET_DEPS     = $(addsuffix .d,$(addprefix $(TARGET_OBJ_DIR)/,$(basename $(SRC))))
 TARGET_MAP      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET_NAME).map
 
-TARGET_BRAIN_BIN = $(TARGET_BASENAME)_brainfpv.bin
+TARGET_BRAIN_BIN = $(BIN_DIR)/$(TARGET_FULLNAME)_brainfpv.bin
 
 TARGET_EXST_HASH_SECTION_FILE = $(TARGET_OBJ_DIR)/exst_hash_section.bin
 
