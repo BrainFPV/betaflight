@@ -433,7 +433,7 @@ extern uint8_t _dmaram_end__;
 
 
 #if !defined(LED_MAX_STRIP_LENGTH)
-#ifdef USE_LEDSTRIP_64
+#ifdef USE_LED_STRIP_64
 #define LED_MAX_STRIP_LENGTH           64
 #else
 #define LED_MAX_STRIP_LENGTH           32
@@ -449,10 +449,6 @@ extern uint8_t _dmaram_end__;
 #if defined(STM32F4) || defined(STM32F7) || defined(STM32H7)
 #define USE_SDCARD_SDIO
 #endif
-#endif
-
-#if (defined(USE_SDCARD) || defined(USE_FLASH)) && !defined(USE_BLACKBOX)
-#define USE_BLACKBOX
 #endif
 
 #if defined(USE_PINIO)

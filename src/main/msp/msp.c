@@ -953,6 +953,7 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
         break;
     }
 
+#if defined(USE_OSD)
     case MSP_OSD_CONFIG: {
 #define OSD_FLAGS_OSD_FEATURE           (1 << 0)
 //#define OSD_FLAGS_OSD_SLAVE             (1 << 1)
@@ -963,7 +964,7 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
 #define OSD_FLAGS_OSD_MSP_DEVICE        (1 << 6)
 
         uint8_t osdFlags = 0;
-#if defined(USE_OSD)
+
         osdFlags |= OSD_FLAGS_OSD_FEATURE;
 
         osdDisplayPortDevice_e deviceType;
@@ -994,7 +995,7 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
         default:
             break;
         }
-#endif
+
         sbufWriteU8(dst, osdFlags);
 
 #ifdef USE_OSD_SD
@@ -1002,9 +1003,8 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
         sbufWriteU8(dst, vcdProfile()->video_system);
 #else
         sbufWriteU8(dst, VIDEO_SYSTEM_HD);
-#endif
+#endif // USE_OSD_SD
 
-#ifdef USE_OSD
         // OSD specific, not applicable to OSD slaves.
 
         // Configuration
@@ -1067,9 +1067,9 @@ static bool mspCommonProcessOutCommand(int16_t cmdMSP, sbuf_t *dst, mspPostProce
         sbufWriteU8(dst, osdConfig()->camera_frame_width);
         sbufWriteU8(dst, osdConfig()->camera_frame_height);
 
-#endif // USE_OSD
         break;
     }
+#endif // USE_OSD
 
     case MSP_OSD_CANVAS: {
 #ifdef USE_OSD
@@ -1565,7 +1565,7 @@ static bool mspProcessOutCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, sbuf_t
 
 #ifdef USE_GPS_RESCUE
     case MSP_GPS_RESCUE:
-        sbufWriteU16(dst, gpsRescueConfig()->angle);
+        sbufWriteU16(dst, gpsRescueConfig()->maxRescueAngle);
         sbufWriteU16(dst, gpsRescueConfig()->initialAltitudeM);
         sbufWriteU16(dst, gpsRescueConfig()->descentDistanceM);
         sbufWriteU16(dst, gpsRescueConfig()->rescueGroundspeed);
@@ -2835,7 +2835,7 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
 
 #ifdef USE_GPS_RESCUE
         case MSP_SET_GPS_RESCUE:
-        gpsRescueConfigMutable()->angle = sbufReadU16(src);
+        gpsRescueConfigMutable()->maxRescueAngle = sbufReadU16(src);
         gpsRescueConfigMutable()->initialAltitudeM = sbufReadU16(src);
         gpsRescueConfigMutable()->descentDistanceM = sbufReadU16(src);
         gpsRescueConfigMutable()->rescueGroundspeed = sbufReadU16(src);
@@ -3592,7 +3592,7 @@ static mspResult_e mspProcessInCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, 
         }
         break;
 
-#ifdef USE_FLASHFS
+#if defined(USE_FLASHFS) && defined(USE_BLACKBOX)
     case MSP_DATAFLASH_ERASE:
         blackboxEraseAll();
 
