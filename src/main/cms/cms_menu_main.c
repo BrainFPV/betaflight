@@ -44,7 +44,7 @@
 #include "cms/cms_menu_saveexit.h"
 
 
-#if defined(USE_BRAINFPV_OSD)
+#if defined(BRAINFPV)
 #include "cms/cms_menu_brainfpv.h"
 #endif
 
@@ -226,7 +226,7 @@ static const OSD_Entry menuMainEntries[] =
 {
     {"-- MAIN --",  OME_Label, NULL, NULL},
 
-#if defined(USE_BRAINFPV_OSD)
+#if defined(BRAINFPV)
     {"BRAINFPV", OME_Submenu, cmsMenuChange, &cmsx_menuBrainFPV},
 #endif
 
