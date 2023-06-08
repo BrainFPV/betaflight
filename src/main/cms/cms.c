@@ -801,7 +801,7 @@ static void cmsDrawMenu(displayPort_t *pDisplay, uint32_t currentTimeUs)
 #if defined(USE_BRAINFPV_OSD)
             // Always render the cursor
             if ((pDisplay == &max7456DisplayPort) && (i == pDisplay->cursorRow)) {
-                room -= cmsDisplayWrite(pDisplay, leftMenuColumn, top + currentCtx.cursorRow * linesPerMenuItem, DISPLAYPORT_ATTR_NORMAL, ">");
+                room -= cmsDisplayWrite(pDisplay, leftMenuColumn, top + currentCtx.cursorRow * linesPerMenuItem, DISPLAYPORT_SEVERITY_NORMAL, ">");
             }
 #endif
 
