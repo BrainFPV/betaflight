@@ -1647,7 +1647,7 @@ void brainFPVRenderCraftNameWarningsDji(char * buffer, int bufferLength)
 
     renderOsdWarning(buffer, &blinking, &displayAttr);
 
-    if ((displayAttr == DISPLAYPORT_ATTR_NORMAL) || (displayAttr == DISPLAYPORT_ATTR_INFO)) {
+    if ((displayAttr == DISPLAYPORT_SEVERITY_NORMAL) || (displayAttr == DISPLAYPORT_SEVERITY_INFO)) {
         // No warnings: Only show info
         showInfo = true;
         if (currentTimeUs - lastSwitchTimeUs > WARNING_INFO_TOGGLE_TIME_US) {
