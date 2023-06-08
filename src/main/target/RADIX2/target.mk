@@ -14,4 +14,5 @@ TARGET_SRC += \
               $(ROOT)/lib/main/BoschSensortec/BMI270-Sensor-API/bmi270_maximum_fifo.c \
               drivers/barometer/barometer_bmp388.c \
               drivers/barometer/barometer_2smpb_02b.c \
+              drivers/barometer/barometer_dps310.c \
               $(addprefix drivers/compass/,$(notdir $(wildcard $(SRC_DIR)/drivers/compass/*.c)))
