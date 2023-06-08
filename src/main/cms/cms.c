@@ -403,7 +403,7 @@ static int cmsDrawMenuItemValue(displayPort_t *pDisplay, char *buff, uint8_t row
 #else
     colpos = smallScreen ? rightMenuColumn - maxSize : rightMenuColumn;
 #endif
-    cnt = cmsDisplayWrite(pDisplay, colpos, row, DISPLAYPORT_ATTR_NORMAL, buff);
+    cnt = cmsDisplayWrite(pDisplay, colpos, row, DISPLAYPORT_SEVERITY_NORMAL, buff);
     return cnt;
 }
 
@@ -604,7 +604,7 @@ static int cmsDrawMenuEntry(displayPort_t *pDisplay, const OSD_Entry *p, uint8_t
     case OME_Label:
         if (IS_PRINTVALUE(*flags) && p->data) {
             // A label with optional string, immediately following text
-            cnt = cmsDisplayWrite(pDisplay, leftMenuColumn + 1 + (uint8_t)strlen(p->text), row, DISPLAYPORT_ATTR_NORMAL, p->data);
+            cnt = cmsDisplayWrite(pDisplay, leftMenuColumn + 1 + (uint8_t)strlen(p->text), row, DISPLAYPORT_SEVERITY_NORMAL, p->data);
             CLR_PRINTVALUE(*flags);
         }
         break;
@@ -620,9 +620,9 @@ static int cmsDrawMenuEntry(displayPort_t *pDisplay, const OSD_Entry *p, uint8_t
 #ifdef CMS_MENU_DEBUG
         // Shouldn't happen. Notify creator of this menu content
 #ifdef CMS_OSD_RIGHT_ALIGNED_VALUES
-        cnt = cmsDisplayWrite(pDisplay, rightMenuColumn - 6, row, DISPLAYPORT_ATTR_NORMAL, "BADENT");
+        cnt = cmsDisplayWrite(pDisplay, rightMenuColumn - 6, row, DISPLAYPORT_SEVERITY_NORMAL, "BADENT");
 #else
-        cnt = cmsDisplayWrite(pDisplay, rightMenuColumn, row, DISPLAYPORT_ATTR_NORMAL, "BADENT");
+        cnt = cmsDisplayWrite(pDisplay, rightMenuColumn, row, DISPLAYPORT_SEVERITY_NORMAL, "BADENT");
 #endif
 #endif
         break;
@@ -761,7 +761,7 @@ static void cmsDrawMenu(displayPort_t *pDisplay, uint32_t currentTimeUs)
 #endif
 
     if (pDisplay->cursorRow >= 0 && currentCtx.cursorRow != pDisplay->cursorRow) {
-        room -= cmsDisplayWrite(pDisplay, leftMenuColumn, top + pDisplay->cursorRow * linesPerMenuItem, DISPLAYPORT_ATTR_NORMAL, " ");
+        room -= cmsDisplayWrite(pDisplay, leftMenuColumn, top + pDisplay->cursorRow * linesPerMenuItem, DISPLAYPORT_SEVERITY_NORMAL, " ");
     }
 
     if (room < 30) {
@@ -769,7 +769,7 @@ static void cmsDrawMenu(displayPort_t *pDisplay, uint32_t currentTimeUs)
     }
 
     if (pDisplay->cursorRow != currentCtx.cursorRow) {
-        room -= cmsDisplayWrite(pDisplay, leftMenuColumn, top + currentCtx.cursorRow * linesPerMenuItem, DISPLAYPORT_ATTR_NORMAL, ">");
+        room -= cmsDisplayWrite(pDisplay, leftMenuColumn, top + currentCtx.cursorRow * linesPerMenuItem, DISPLAYPORT_SEVERITY_NORMAL, ">");
         pDisplay->cursorRow = currentCtx.cursorRow;
     }
 
@@ -823,9 +823,10 @@ static void cmsDrawMenu(displayPort_t *pDisplay, uint32_t currentTimeUs)
             }
 #endif
 
-            room -= cmsDisplayWrite(pDisplay, coloff, top + i * linesPerMenuItem, DISPLAYPORT_ATTR_NORMAL, p->text);
 
-	    CLR_PRINTLABEL(runtimeEntryFlags[i]);
+            room -= cmsDisplayWrite(pDisplay, coloff, top + i * linesPerMenuItem, DISPLAYPORT_SEVERITY_NORMAL, p->text);
+            CLR_PRINTLABEL(runtimeEntryFlags[i]);
+
             if (room < 30) {
                 return;
             }
@@ -834,7 +835,7 @@ static void cmsDrawMenu(displayPort_t *pDisplay, uint32_t currentTimeUs)
 
         // Highlight values overridden by sliders
         if (rowSliderOverride(p->flags)) {
-            displayWriteChar(pDisplay, leftMenuColumn - 1, top + i * linesPerMenuItem, DISPLAYPORT_ATTR_NORMAL, 'S');
+            displayWriteChar(pDisplay, leftMenuColumn - 1, top + i * linesPerMenuItem, DISPLAYPORT_SEVERITY_NORMAL, 'S');
         }
 
     // Print values
@@ -858,11 +859,11 @@ static void cmsDrawMenu(displayPort_t *pDisplay, uint32_t currentTimeUs)
     if (displayWasCleared && leftMenuColumn > 0) {      // make sure there's room to draw the symbol
         if (currentCtx.page > 0) {
             const uint8_t symbol = displaySupportsOsdSymbols(pDisplay) ? SYM_ARROW_SMALL_UP : '^';
-            displayWriteChar(pDisplay, leftMenuColumn - 1, top, DISPLAYPORT_ATTR_NORMAL, symbol);
+            displayWriteChar(pDisplay, leftMenuColumn - 1, top, DISPLAYPORT_SEVERITY_NORMAL, symbol);
         }
          if (currentCtx.page < pageCount - 1) {
             const uint8_t symbol = displaySupportsOsdSymbols(pDisplay) ? SYM_ARROW_SMALL_DOWN : 'v';
-            displayWriteChar(pDisplay, leftMenuColumn - 1, top + pageMaxRow, DISPLAYPORT_ATTR_NORMAL, symbol);
+            displayWriteChar(pDisplay, leftMenuColumn - 1, top + pageMaxRow, DISPLAYPORT_SEVERITY_NORMAL, symbol);
         }
     }
 
@@ -1066,7 +1067,7 @@ const void *cmsMenuExit(displayPort_t *pDisplay, const void *ptr)
 
     if ((exitType == CMS_EXIT_SAVEREBOOT) || (exitType == CMS_POPUP_SAVEREBOOT) || (exitType == CMS_POPUP_EXITREBOOT)) {
         displayClearScreen(pDisplay, DISPLAY_CLEAR_WAIT);
-        cmsDisplayWrite(pDisplay, 5, 3, DISPLAYPORT_ATTR_NORMAL, "REBOOTING...");
+        cmsDisplayWrite(pDisplay, 5, 3, DISPLAYPORT_SEVERITY_NORMAL, "REBOOTING...");
 
         // Flush display
         displayRedraw(pDisplay);

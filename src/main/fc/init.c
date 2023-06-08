@@ -854,6 +854,7 @@ SLOW_CODE void init(void)
     flashfsInit();
 #endif
 
+#ifdef USE_BLACKBOX
 #ifdef USE_SDCARD
     if (blackboxConfig()->device == BLACKBOX_DEVICE_SDCARD) {
         if (sdcardConfig()->mode) {
@@ -875,7 +876,6 @@ SLOW_CODE void init(void)
         }
     }
 #endif
-#ifdef USE_BLACKBOX
     blackboxInit();
 #endif
 
