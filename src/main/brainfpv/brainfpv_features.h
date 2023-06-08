@@ -56,6 +56,8 @@
 #define USE_GPS
 #define USE_LED_STRIP
 
+#define USE_ACRO_TRAINER
+
 #if TARGET_FLASH_SIZE > 512
 #define USE_SERIALRX_JETIEXBUS
 #define USE_SERIALRX_SUMD       // Graupner Hott protocol
