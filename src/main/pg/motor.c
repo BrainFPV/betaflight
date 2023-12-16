@@ -33,7 +33,19 @@
 #include "pg/pg_ids.h"
 #include "pg/motor.h"
 
-PG_REGISTER_WITH_RESET_FN(motorConfig_t, motorConfig, PG_MOTOR_CONFIG, 1);
+#if !defined(DEFAULT_DSHOT_BITBANG)
+#define DEFAULT_DSHOT_BITBANG DSHOT_BITBANG_AUTO
+#endif
+
+#if !defined(DSHOT_BITBANGED_TIMER_DEFAULT)
+#define DSHOT_BITBANGED_TIMER_DEFAULT DSHOT_BITBANGED_TIMER_AUTO
+#endif
+
+#if !defined(DEFAULT_DSHOT_BURST)
+#define DEFAULT_DSHOT_BURST DSHOT_DMAR_OFF
+#endif
+
+PG_REGISTER_WITH_RESET_FN(motorConfig_t, motorConfig, PG_MOTOR_CONFIG, 2);
 
 void pgResetFn_motorConfig(motorConfig_t *motorConfig)
 {
