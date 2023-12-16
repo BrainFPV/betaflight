@@ -198,6 +198,7 @@
 #define TARGET_IO_PORTD         (BIT(2))
 
 #define USE_DSHOT
+#define USE_DSHOT_BITBAND
 #define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(5) | TIM_N(12) )
 
 #define DSHOT_BITBANG_DEFAULT DSHOT_BITBANG_OFF
