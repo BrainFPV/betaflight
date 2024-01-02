@@ -56,6 +56,7 @@
 #include "drivers/accgyro/accgyro_spi_mpu6500.h"
 #include "drivers/accgyro/accgyro_spi_mpu9250.h"
 #include "drivers/accgyro/accgyro_spi_l3gd20.h"
+#include "drivers/accgyro/accgyro_spi_lsm6dsv16x.h"
 #include "drivers/accgyro/accgyro_mpu.h"
 
 #include "pg/pg.h"
@@ -118,7 +119,7 @@ static void mpu6050FindRevision(gyroDev_t *gyro)
 #ifdef USE_SPI_GYRO
 // Called in ISR context
 // Gyro read has just completed
-busStatus_e mpuIntcallback(uint32_t arg)
+busStatus_e mpuIntCallback(uint32_t arg)
 {
     gyroDev_t *gyro = (gyroDev_t *)arg;
     int32_t gyroDmaDuration = cmpTimeCycles(getCycleCounter(), gyro->gyroLastEXTI);
@@ -132,7 +133,7 @@ busStatus_e mpuIntcallback(uint32_t arg)
     return BUS_READY;
 }
 
-static void mpuIntExtiHandler(extiCallbackRec_t *cb)
+void mpuIntExtiHandler(extiCallbackRec_t *cb)
 {
     gyroDev_t *gyro = container_of(cb, gyroDev_t, exti);
 
@@ -277,8 +278,8 @@ bool mpuGyroReadSPI(gyroDev_t *gyro)
             if (spiUseDMA(&gyro->dev)) {
                 gyro->dev.callbackArg = (uint32_t)gyro;
                 gyro->dev.txBuf[0] = gyro->accDataReg | 0x80;
-                gyro->segments[0].len = gyro->gyroDataReg - gyro->accDataReg + 7;
-                gyro->segments[0].callback = mpuIntcallback;
+                gyro->segments[0].len = gyro->gyroDataReg - gyro->accDataReg + sizeof(uint8_t) + 3 * sizeof(int16_t);
+                gyro->segments[0].callback = mpuIntCallback;
                 gyro->segments[0].u.buffers.txData = gyro->dev.txBuf;
                 gyro->segments[0].u.buffers.rxData = &gyro->dev.rxBuf[1];
                 gyro->segments[0].negateCS = true;
@@ -339,6 +340,12 @@ bool mpuGyroReadSPI(gyroDev_t *gyro)
 typedef uint8_t (*gyroSpiDetectFn_t)(const extDevice_t *dev);
 
 static gyroSpiDetectFn_t gyroSpiDetectFnTable[] = {
+#ifdef USE_ACCGYRO_LSM6DSV16X
+    lsm6dsv16xSpiDetect,
+#endif
+#ifdef USE_GYRO_SPI_ICM20689
+    icm20689SpiDetect,  // icm20689SpiDetect detects ICM20602 and ICM20689
+#endif
 #ifdef USE_GYRO_SPI_MPU6000
     mpu6000SpiDetect,
 #endif
@@ -347,9 +354,6 @@ static gyroSpiDetectFn_t gyroSpiDetectFnTable[] = {
 #endif
 #ifdef  USE_GYRO_SPI_MPU9250
     mpu9250SpiDetect,
-#endif
-#ifdef USE_GYRO_SPI_ICM20689
-    icm20689SpiDetect,  // icm20689SpiDetect detects ICM20602 and ICM20689
 #endif
 #ifdef USE_ACCGYRO_LSM6DSO
     lsm6dsoDetect,

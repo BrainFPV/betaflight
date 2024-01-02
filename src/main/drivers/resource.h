@@ -40,8 +40,8 @@ typedef enum {
     OWNER_SONAR_ECHO,
     OWNER_SYSTEM,
     OWNER_SPI_SCK,
-    OWNER_SPI_MISO,
-    OWNER_SPI_MOSI,
+    OWNER_SPI_SDI,
+    OWNER_SPI_SDO,
     OWNER_I2C_SCL,
     OWNER_I2C_SDA,
     OWNER_SDCARD,
@@ -109,6 +109,8 @@ typedef enum {
     OWNER_SWD,
     OWNER_RX_SPI_EXPRESSLRS_RESET,
     OWNER_RX_SPI_EXPRESSLRS_BUSY,
+    OWNER_SOFTSERIAL_TX,
+    OWNER_SOFTSERIAL_RX,
     OWNER_TOTAL_COUNT
 } resourceOwner_e;
 
@@ -120,4 +122,5 @@ typedef struct resourceOwner_s {
 extern const char * const ownerNames[OWNER_TOTAL_COUNT];
 
 #define RESOURCE_INDEX(x) (x + 1)
+// TODO(hertz@): only used by vtx_rtc6707_soft_spi and probably for display purposes
 #define RESOURCE_SOFT_OFFSET    10

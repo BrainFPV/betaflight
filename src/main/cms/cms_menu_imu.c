@@ -78,10 +78,6 @@ static uint8_t rateProfileIndex;
 static char rateProfileIndexString[MAX_RATE_PROFILE_NAME_LENGTH + PROFILE_INDEX_STRING_ADDITIONAL_SIZE];
 static controlRateConfig_t rateProfile;
 
-static const char * const osdTableThrottleLimitType[] = {
-    "OFF", "SCALE", "CLIP"
-};
-
 #ifdef USE_MULTI_GYRO
 static const char * const osdTableGyroToUse[] = {
     "FIRST", "SECOND", "BOTH"
@@ -267,6 +263,9 @@ static uint8_t cmsx_simplified_gyro_filter;
 static uint8_t cmsx_simplified_gyro_filter_multiplier;
 static uint8_t cmsx_tpa_rate;
 static uint16_t cmsx_tpa_breakpoint;
+static uint8_t cmsx_tpa_low_rate;
+static uint16_t cmsx_tpa_low_breakpoint;
+static uint8_t cmsx_tpa_low_always;
 
 static const void *cmsx_simplifiedTuningOnEnter(displayPort_t *pDisp)
 {
@@ -432,11 +431,8 @@ static const OSD_Entry cmsx_menuRateProfileEntries[] =
     { "THR MID",     OME_UINT8,  NULL, &(OSD_UINT8_t) { &rateProfile.thrMid8,           0,  100,  1} },
     { "THR EXPO",    OME_UINT8,  NULL, &(OSD_UINT8_t) { &rateProfile.thrExpo8,          0,  100,  1} },
 
-    { "THR LIM TYPE",OME_TAB,    NULL, &(OSD_TAB_t)   { &rateProfile.throttle_limit_type, THROTTLE_LIMIT_TYPE_COUNT - 1, osdTableThrottleLimitType} },
+    { "THR LIM TYPE",OME_TAB,    NULL, &(OSD_TAB_t)   { &rateProfile.throttle_limit_type, THROTTLE_LIMIT_TYPE_COUNT - 1, lookupTableThrottleLimitType} },
     { "THR LIM %",   OME_UINT8,  NULL, &(OSD_UINT8_t) { &rateProfile.throttle_limit_percent, 25,  100,  1} },
-
-    { "ROLL LVL EXPO",  OME_FLOAT, NULL, &(OSD_FLOAT_t) { &rateProfile.levelExpo[FD_ROLL],  0, 100, 1, 10 } },
-    { "PITCH LVL EXPO", OME_FLOAT, NULL, &(OSD_FLOAT_t) { &rateProfile.levelExpo[FD_PITCH], 0, 100, 1, 10 } },
 
     { "BACK", OME_Back, NULL, NULL },
     { NULL, OME_END, NULL, NULL}
@@ -516,10 +512,15 @@ static CMS_Menu cmsx_menuLaunchControl = {
 };
 #endif
 
-static uint8_t  cmsx_angleStrength;
+static uint8_t  cmsx_angleP;
+static uint8_t  cmsx_angleFF;
+static uint8_t  cmsx_angleLimit;
+static uint8_t  cmsx_angleEarthRef;
+
 static uint8_t  cmsx_horizonStrength;
-static uint8_t  cmsx_horizonTransition;
-static uint8_t  cmsx_levelAngleLimit;
+static uint8_t  cmsx_horizonLimitSticks;
+static uint8_t  cmsx_horizonLimitDegrees;
+
 static uint8_t  cmsx_throttleBoost;
 static uint8_t  cmsx_thrustLinearization;
 static uint8_t  cmsx_antiGravityGain;
@@ -551,6 +552,9 @@ static uint8_t cmsx_feedforward_jitter_factor;
 
 static uint8_t cmsx_tpa_rate;
 static uint16_t cmsx_tpa_breakpoint;
+static uint8_t cmsx_tpa_low_rate;
+static uint16_t cmsx_tpa_low_breakpoint;
+static uint8_t cmsx_tpa_low_always;
 
 static const void *cmsx_profileOtherOnEnter(displayPort_t *pDisp)
 {
@@ -560,10 +564,14 @@ static const void *cmsx_profileOtherOnEnter(displayPort_t *pDisp)
 
     const pidProfile_t *pidProfile = pidProfiles(pidProfileIndex);
 
-    cmsx_angleStrength =     pidProfile->pid[PID_LEVEL].P;
-    cmsx_horizonStrength =   pidProfile->pid[PID_LEVEL].I;
-    cmsx_horizonTransition = pidProfile->pid[PID_LEVEL].D;
-    cmsx_levelAngleLimit =   pidProfile->levelAngleLimit;
+    cmsx_angleP =             pidProfile->pid[PID_LEVEL].P;
+    cmsx_angleFF =            pidProfile->pid[PID_LEVEL].F;
+    cmsx_angleLimit =         pidProfile->angle_limit;
+    cmsx_angleEarthRef =      pidProfile->angle_earth_ref;
+
+    cmsx_horizonStrength =    pidProfile->pid[PID_LEVEL].I;
+    cmsx_horizonLimitSticks = pidProfile->pid[PID_LEVEL].D;
+    cmsx_horizonLimitDegrees = pidProfile->horizon_limit_degrees;
 
     cmsx_antiGravityGain   = pidProfile->anti_gravity_gain;
 
@@ -599,6 +607,9 @@ static const void *cmsx_profileOtherOnEnter(displayPort_t *pDisp)
 #endif
     cmsx_tpa_rate = pidProfile->tpa_rate;
     cmsx_tpa_breakpoint = pidProfile->tpa_breakpoint;
+    cmsx_tpa_low_rate = pidProfile->tpa_low_rate;
+    cmsx_tpa_low_breakpoint = pidProfile->tpa_low_breakpoint;
+    cmsx_tpa_low_always = pidProfile->tpa_low_always;
 
     return NULL;
 }
@@ -611,10 +622,14 @@ static const void *cmsx_profileOtherOnExit(displayPort_t *pDisp, const OSD_Entry
     pidProfile_t *pidProfile = pidProfilesMutable(pidProfileIndex);
     pidInitConfig(currentPidProfile);
 
-    pidProfile->pid[PID_LEVEL].P = cmsx_angleStrength;
+    pidProfile->pid[PID_LEVEL].P = cmsx_angleP;
+    pidProfile->pid[PID_LEVEL].F = cmsx_angleFF;
+    pidProfile->angle_limit = cmsx_angleLimit;
+    pidProfile->angle_earth_ref = cmsx_angleEarthRef;
+
     pidProfile->pid[PID_LEVEL].I = cmsx_horizonStrength;
-    pidProfile->pid[PID_LEVEL].D = cmsx_horizonTransition;
-    pidProfile->levelAngleLimit  = cmsx_levelAngleLimit;
+    pidProfile->pid[PID_LEVEL].D = cmsx_horizonLimitSticks;
+    pidProfile->horizon_limit_degrees = cmsx_horizonLimitDegrees;
 
     pidProfile->anti_gravity_gain   = cmsx_antiGravityGain;
 
@@ -650,6 +665,9 @@ static const void *cmsx_profileOtherOnExit(displayPort_t *pDisp, const OSD_Entry
 #endif
     pidProfile->tpa_rate = cmsx_tpa_rate;
     pidProfile->tpa_breakpoint = cmsx_tpa_breakpoint;
+    pidProfile->tpa_low_rate = cmsx_tpa_low_rate;
+    pidProfile->tpa_low_breakpoint = cmsx_tpa_low_breakpoint;
+    pidProfile->tpa_low_always = cmsx_tpa_low_always;
 
     initEscEndpoints();
     return NULL;
@@ -661,14 +679,18 @@ static const OSD_Entry cmsx_menuProfileOtherEntries[] = {
 #ifdef USE_FEEDFORWARD
     { "FF TRANSITION", OME_FLOAT,  NULL, &(OSD_FLOAT_t)  { &cmsx_feedforward_transition,        0,    100,   1, 10 } },
     { "FF AVERAGING",  OME_TAB,    NULL, &(OSD_TAB_t)    { &cmsx_feedforward_averaging,         4, lookupTableFeedforwardAveraging} },
-    { "FF SMOOTHNESS", OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_feedforward_smooth_factor,     0,     75,   1  }    },
+    { "FF SMOOTHNESS", OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_feedforward_smooth_factor,     0,     95,   1  }    },
     { "FF JITTER",     OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_feedforward_jitter_factor,     0,     20,   1  }    },
     { "FF BOOST",      OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_feedforward_boost,             0,     50,   1  }    },
 #endif
-    { "ANGLE STR",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_angleStrength,          0,    200,   1  }    },
-    { "HORZN STR",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonStrength,        0,    200,   1  }    },
-    { "HORZN TRS",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonTransition,      0,    200,   1  }    },
-    { "ANGLE LIMIT", OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_levelAngleLimit,        10,    90,   1  }    },
+    { "ANGLE P",         OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_angleP,                     0,    200,   1  }    },
+    { "ANGLE FF",        OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_angleFF,                    0,    200,   1  }    },
+    { "ANGLE LIMIT",     OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_angleLimit,                10,     90,   1  }    },
+    { "ANGLE E_REF",     OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_angleEarthRef,              0,    100,   1  }    },
+
+    { "HORZN STR",       OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonStrength,            0,    100,   1  }    },
+    { "HORZN LIM_STK",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonLimitSticks,        10,    200,   1  }    },
+    { "HORZN LIM_DEG",   OME_UINT8,  NULL, &(OSD_UINT8_t)  { &cmsx_horizonLimitDegrees,       10,    250,   1  }    },
 
     { "AG GAIN",     OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &cmsx_antiGravityGain,   ITERM_ACCELERATOR_GAIN_OFF, ITERM_ACCELERATOR_GAIN_MAX, 1, 100 }    },
 #ifdef USE_THROTTLE_BOOST
@@ -701,8 +723,11 @@ static const OSD_Entry cmsx_menuProfileOtherEntries[] = {
     { "VBAT_SAG_COMP", OME_UINT8,  NULL, &(OSD_UINT8_t) { &cmsx_vbat_sag_compensation, 0, 150, 1 } },
 #endif
 
-    { "TPA RATE",  OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &cmsx_tpa_rate,          0,  100,  1, 10} },
-    { "TPA BRKPT",   OME_UINT16, NULL, &(OSD_UINT16_t){ &cmsx_tpa_breakpoint, 1000, 2000, 10} },
+    { "TPA RATE",      OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &cmsx_tpa_rate, 0, 100, 1, 10} },
+    { "TPA BRKPT",     OME_UINT16, NULL, &(OSD_UINT16_t){ &cmsx_tpa_breakpoint, 1000, 2000, 10} },
+    { "TPA LOW RATE",  OME_FLOAT,  NULL, &(OSD_FLOAT_t) { &cmsx_tpa_low_rate, 0, 100, 1, 10} },
+    { "TPA LOW BRKPT", OME_UINT16, NULL, &(OSD_UINT16_t){ &cmsx_tpa_low_breakpoint, 1000, 2000, 10} },
+    { "TPA LOW ALWYS", OME_UINT8,  NULL, &(OSD_UINT8_t) { &cmsx_tpa_low_always, 0, 1, 1} },
 
     { "BACK", OME_Back, NULL, NULL },
     { NULL, OME_END, NULL, NULL}

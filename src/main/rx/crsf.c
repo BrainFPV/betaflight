@@ -234,6 +234,7 @@ static void handleCrsfLinkStatisticsFrame(const crsfLinkStatistics_t* statsPtr, 
     }
 #ifdef USE_RX_RSSI_DBM
     setRssiDbm(rssiDbm, RSSI_SOURCE_RX_PROTOCOL_CRSF);
+    setActiveAntenna(stats.active_antenna);
 #endif
 
 #ifdef USE_RX_RSNR
@@ -410,6 +411,9 @@ STATIC_UNIT_TESTED void crsfDataReceive(uint16_t c, void *data)
 #if defined(USE_CRSF_CMS_TELEMETRY)
                 case CRSF_FRAMETYPE_DEVICE_PING:
                     crsfScheduleDeviceInfoResponse();
+                    break;
+                case CRSF_FRAMETYPE_DEVICE_INFO:
+                    crsfHandleDeviceInfoResponse(crsfFrame.frame.payload);
                     break;
                 case CRSF_FRAMETYPE_DISPLAYPORT_CMD: {
                     uint8_t *frameStart = (uint8_t *)&crsfFrame.frame.payload + CRSF_FRAME_ORIGIN_DEST_SIZE;
@@ -605,7 +609,9 @@ void crsfRxSendTelemetryData(void)
 {
     // if there is telemetry data to write
     if (telemetryBufLen > 0) {
-        serialWriteBuf(serialPort, telemetryBuf, telemetryBufLen);
+        if (serialPort != NULL) {
+            serialWriteBuf(serialPort, telemetryBuf, telemetryBufLen);
+        }
         telemetryBufLen = 0; // reset telemetry buffer
     }
 }
@@ -674,5 +680,23 @@ bool crsfRxUseNegotiatedBaud(void)
 bool crsfRxIsActive(void)
 {
     return serialPort != NULL;
+}
+
+void crsfRxBind(void)
+{
+    if (serialPort != NULL) {
+        uint8_t bindFrame[] = {
+            CRSF_SYNC_BYTE,
+            0x07,  // frame length
+            CRSF_FRAMETYPE_COMMAND,
+            CRSF_ADDRESS_CRSF_RECEIVER,
+            CRSF_ADDRESS_FLIGHT_CONTROLLER,
+            CRSF_COMMAND_SUBCMD_RX,
+            CRSF_COMMAND_SUBCMD_RX_BIND,
+            0x9E,  // Command CRC8
+            0xE8,  // Packet CRC8
+        };
+        serialWriteBuf(serialPort, bindFrame, 9);
+    }
 }
 #endif

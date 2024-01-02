@@ -65,6 +65,7 @@
 #include "io/gps.h"
 #include "io/ledstrip.h"
 #include "io/serial.h"
+#include "io/vtx.h"
 
 #include "rx/rx.h"
 
@@ -87,6 +88,12 @@ static uint8_t previousProfileColorIndex = COLOR_UNDEFINED;
 #define HZ_TO_US(hz) ((int32_t)((1000 * 1000) / (hz)))
 
 #define MAX_TIMER_DELAY (5 * 1000 * 1000)
+
+#define TASK_LEDSTRIP_RATE_FAST_HZ 4000
+
+#define LED_TASK_MARGIN                 1
+// Decay the estimated max task duration by 1/(1 << LED_EXEC_TIME_SHIFT) on every invocation
+#define LED_EXEC_TIME_SHIFT             5
 
 #define PROFILE_COLOR_UPDATE_INTERVAL_US 1e6  // normally updates when color changes but this is a 1 second forced update
 
@@ -115,7 +122,7 @@ const hsvColor_t hsv[] = {
 // macro to save typing on default colors
 #define HSV(color) (hsv[COLOR_ ## color])
 
-PG_REGISTER_WITH_RESET_FN(ledStripConfig_t, ledStripConfig, PG_LED_STRIP_CONFIG, 2);
+PG_REGISTER_WITH_RESET_FN(ledStripConfig_t, ledStripConfig, PG_LED_STRIP_CONFIG, 3);
 
 void pgResetFn_ledStripConfig(ledStripConfig_t *ledStripConfig)
 {
@@ -132,16 +139,28 @@ void pgResetFn_ledStripConfig(ledStripConfig_t *ledStripConfig)
     ledStripConfig->ledstrip_beacon_armed_only = false; // blink always
     ledStripConfig->ledstrip_visual_beeper_color = VISUAL_BEEPER_COLOR;
     ledStripConfig->ledstrip_brightness = 100;
+    ledStripConfig->ledstrip_rainbow_delta = 0;
+    ledStripConfig->ledstrip_rainbow_freq = 120;
 #ifndef UNIT_TEST
-    ledStripConfig->ioTag = timerioTagGetByUsage(TIM_USE_LED, 0);
+#ifdef LED_STRIP_PIN
+    ledStripConfig->ioTag = IO_TAG(LED_STRIP_PIN);
+#else
+    ledStripConfig->ioTag = IO_TAG_NONE;
+#endif
 #endif
 }
 
 #ifdef USE_LED_STRIP_STATUS_MODE
 
-#if LED_MAX_STRIP_LENGTH > WS2811_LED_STRIP_LENGTH
+#if LED_STRIP_MAX_LENGTH > WS2811_LED_STRIP_LENGTH
 # error "Led strip length must match driver"
 #endif
+
+typedef enum {
+    LED_PROFILE_SLOW,
+    LED_PROFILE_FAST,
+    LED_PROFILE_ADVANCE
+} ledProfileSequence_t;
 
 const hsvColor_t *colors;
 const modeColorIndexes_t *modeColors;
@@ -181,7 +200,7 @@ PG_REGISTER_WITH_RESET_FN(ledStripStatusModeConfig_t, ledStripStatusModeConfig, 
 
 void pgResetFn_ledStripStatusModeConfig(ledStripStatusModeConfig_t *ledStripStatusModeConfig)
 {
-    memset(ledStripStatusModeConfig->ledConfigs, 0, LED_MAX_STRIP_LENGTH * sizeof(ledConfig_t));
+    memset(ledStripStatusModeConfig->ledConfigs, 0, LED_STRIP_MAX_LENGTH * sizeof(ledConfig_t));
     // copy hsv colors as default
     memset(ledStripStatusModeConfig->colors, 0, ARRAYLEN(hsv) * sizeof(hsvColor_t));
     STATIC_ASSERT(LED_CONFIGURABLE_COLOR_COUNT >= ARRAYLEN(hsv), LED_CONFIGURABLE_COLOR_COUNT_invalid);
@@ -254,7 +273,7 @@ STATIC_UNIT_TESTED void updateLedCount(void)
 {
     int count = 0, countRing = 0, countScanner= 0;
 
-    for (int ledIndex = 0; ledIndex < LED_MAX_STRIP_LENGTH; ledIndex++) {
+    for (int ledIndex = 0; ledIndex < LED_STRIP_MAX_LENGTH; ledIndex++) {
         const ledConfig_t *ledConfig = &ledStripStatusModeConfig()->ledConfigs[ledIndex];
 
         if (!(*ledConfig))
@@ -291,12 +310,12 @@ static const hsvColor_t* getSC(ledSpecialColorIds_e index)
 
 static const char directionCodes[LED_DIRECTION_COUNT] = { 'N', 'E', 'S', 'W', 'U', 'D' };
 static const char baseFunctionCodes[LED_BASEFUNCTION_COUNT]   = { 'C', 'F', 'A', 'L', 'S', 'G', 'R' };
-static const char overlayCodes[LED_OVERLAY_COUNT]   = { 'T', 'O', 'B', 'V', 'I', 'W' };
+static const char overlayCodes[LED_OVERLAY_COUNT]   = { 'T', 'Y', 'O', 'B', 'V', 'I', 'W' };
 
 #define CHUNK_BUFFER_SIZE 11
 bool parseLedStripConfig(int ledIndex, const char *config)
 {
-    if (ledIndex >= LED_MAX_STRIP_LENGTH)
+    if (ledIndex >= LED_STRIP_MAX_LENGTH)
         return false;
 
     enum parseState_e {
@@ -374,7 +393,7 @@ bool parseLedStripConfig(int ledIndex, const char *config)
         }
     }
 
-    *ledConfig = DEFINE_LED(x, y, color, direction_flags, baseFunction, overlay_flags, 0);
+    *ledConfig = DEFINE_LED(x, y, color, direction_flags, baseFunction, overlay_flags);
 
     reevaluateLedConfig();
 
@@ -617,6 +636,32 @@ static void applyLedWarningLayer(bool updateNow, timeUs_t *timer)
 }
 
 #ifdef USE_VTX_COMMON
+static const struct {
+    uint16_t freq_upper_limit;
+    uint8_t color_index;
+} freq_to_color_lookup[] = {
+    {VTX_SETTINGS_MIN_FREQUENCY_MHZ, COLOR_BLACK},       // invalid
+    // Freqs are divided to match Raceband channels
+    {                          5672, COLOR_WHITE},       // R1
+    {                          5711, COLOR_RED},         // R2
+    {                          5750, COLOR_ORANGE},      // R3
+    {                          5789, COLOR_YELLOW},      // R4
+    {                          5829, COLOR_GREEN},       // R5
+    {                          5867, COLOR_BLUE},        // R6
+    {                          5906, COLOR_DARK_VIOLET}, // R7
+    {VTX_SETTINGS_MAX_FREQUENCY_MHZ, COLOR_DEEP_PINK},   // R8
+};
+
+static uint8_t getColorByVtxFrequency(const uint16_t freq)
+{
+    for (unsigned iter = 0; iter < ARRAYLEN(freq_to_color_lookup); iter++) {
+        if (freq <= freq_to_color_lookup[iter].freq_upper_limit) {
+            return freq_to_color_lookup[iter].color_index;
+        }
+    }
+    return COLOR_BLACK; // invalid
+}
+
 static void applyLedVtxLayer(bool updateNow, timeUs_t *timer)
 {
     static uint16_t frequency = 0;
@@ -685,24 +730,7 @@ static void applyLedVtxLayer(bool updateNow, timeUs_t *timer)
     }
     else { // show frequency
         // calculate the VTX color based on frequency
-        int colorIndex = 0;
-        if (frequency <= 5672) {
-            colorIndex = COLOR_WHITE;
-        } else if (frequency <= 5711) {
-            colorIndex = COLOR_RED;
-        } else if (frequency <= 5750) {
-            colorIndex = COLOR_ORANGE;
-        } else if (frequency <= 5789) {
-            colorIndex = COLOR_YELLOW;
-        } else if (frequency <= 5829) {
-            colorIndex = COLOR_GREEN;
-        } else if (frequency <= 5867) {
-            colorIndex = COLOR_BLUE;
-        } else if (frequency <= 5906) {
-            colorIndex = COLOR_DARK_VIOLET;
-        } else {
-            colorIndex = COLOR_DEEP_PINK;
-        }
+        uint8_t const colorIndex = getColorByVtxFrequency(frequency);
         hsvColor_t color = ledStripStatusModeConfig()->colors[colorIndex];
         color.v = (vtxStatus & VTX_STATUS_PIT_MODE) ? (blink ? 15 : 0) : 255; // blink when in pit mode
         applyLedHsv(LED_MOV_OVERLAY(LED_FLAG_OVERLAY(LED_OVERLAY_VTX)), &color);
@@ -890,6 +918,30 @@ static void applyLedThrustRingLayer(bool updateNow, timeUs_t *timer)
     }
 }
 
+static void applyRainbowLayer(bool updateNow, timeUs_t *timer)
+{
+    //use offset as a fixed point number
+    static int offset = 0;
+
+    if (updateNow) {
+        offset += ledStripConfig()->ledstrip_rainbow_freq;
+        *timer += HZ_TO_US(TASK_LEDSTRIP_RATE_HZ);
+    }
+    uint8_t rainbowLedIndex = 0;
+
+    for (unsigned i = 0; i < ledCounts.count; i++) {
+        const ledConfig_t *ledConfig = &ledStripStatusModeConfig()->ledConfigs[i];
+        if (ledGetOverlayBit(ledConfig, LED_OVERLAY_RAINBOW)) {
+            hsvColor_t ledColor;
+            ledColor.h = (offset / TASK_LEDSTRIP_RATE_HZ + rainbowLedIndex * ledStripConfig()->ledstrip_rainbow_delta) % (HSV_HUE_MAX + 1);
+            ledColor.s = 0;
+            ledColor.v = HSV_VALUE_MAX;
+            setLedHsv(i, &ledColor);
+            rainbowLedIndex++;
+        }
+    }
+}
+
 typedef struct larsonParameters_s {
     uint8_t currentBrightness;
     int8_t currentIndex;
@@ -980,6 +1032,7 @@ static void applyLedBlinkLayer(bool updateNow, timeUs_t *timer)
 
 // In reverse order of priority
 typedef enum {
+    timRainbow,
     timBlink,
     timLarson,
     timRing,
@@ -1009,6 +1062,7 @@ STATIC_ASSERT(timTimerCount <= sizeof(disabledTimerMask) * 8, disabledTimerMask_
 typedef void applyLayerFn_timed(bool updateNow, timeUs_t *timer);
 
 static applyLayerFn_timed* layerTable[] = {
+    [timRainbow] = &applyRainbowLayer,
     [timBlink] = &applyLedBlinkLayer,
     [timLarson] = &applyLarsonScannerLayer,
     [timBattery] = &applyLedBatteryLayer,
@@ -1038,6 +1092,7 @@ bool isOverlayTypeUsed(ledOverlayId_e overlayType)
 void updateRequiredOverlay(void)
 {
     disabledTimerMask = 0;
+    disabledTimerMask |= !isOverlayTypeUsed(LED_OVERLAY_RAINBOW) << timRainbow;
     disabledTimerMask |= !isOverlayTypeUsed(LED_OVERLAY_BLINK) << timBlink;
     disabledTimerMask |= !isOverlayTypeUsed(LED_OVERLAY_LARSON_SCANNER) << timLarson;
     disabledTimerMask |= !isOverlayTypeUsed(LED_OVERLAY_WARNING) << timWarning;
@@ -1047,39 +1102,56 @@ void updateRequiredOverlay(void)
     disabledTimerMask |= !isOverlayTypeUsed(LED_OVERLAY_INDICATOR) << timIndicator;
 }
 
-static void applyStatusProfile(timeUs_t now)
+static ledProfileSequence_t applyStatusProfile(timeUs_t now)
 {
+    static timId_e timId = 0;
+    static uint32_t timActive = 0;
+    static bool fixedLayersApplied = false;
+    timeUs_t startTime = micros();
 
-    // apply all layers; triggered timed functions has to update timers
-    // test all led timers, setting corresponding bits
-    uint32_t timActive = 0;
-    for (timId_e timId = 0; timId < timTimerCount; timId++) {
-        if (!(disabledTimerMask & (1 << timId))) {
-            // sanitize timer value, so that it can be safely incremented. Handles inital timerVal value.
-            const timeDelta_t delta = cmpTimeUs(now, timerVal[timId]);
-            // max delay is limited to 5s
-            if (delta < 0 && delta > -MAX_TIMER_DELAY)
-                continue;  // not ready yet
-            timActive |= 1 << timId;
-            if (delta >= 100 * 1000 || delta < 0) {
-                timerVal[timId] = now;
+    if (!timActive) {
+        // apply all layers; triggered timed functions has to update timers
+        // test all led timers, setting corresponding bits
+        for (timId_e timId = 0; timId < timTimerCount; timId++) {
+            if (!(disabledTimerMask & (1 << timId))) {
+                // sanitize timer value, so that it can be safely incremented. Handles inital timerVal value.
+                const timeDelta_t delta = cmpTimeUs(now, timerVal[timId]);
+                // max delay is limited to 5s
+                if (delta < 0 && delta > -MAX_TIMER_DELAY)
+                    continue;  // not ready yet
+                timActive |= 1 << timId;
+                if (delta >= 100 * 1000 || delta < 0) {
+                    timerVal[timId] = now;
+                }
             }
+        }
+
+        if (!timActive) {
+            return LED_PROFILE_SLOW;          // no change this update, keep old state
         }
     }
 
-    if (!timActive) {
-        // Call schedulerIgnoreTaskExecTime() unless data is being processed
-        schedulerIgnoreTaskExecTime();
-        return;          // no change this update, keep old state
+    if (!fixedLayersApplied) {
+        applyLedFixedLayers();
+        fixedLayersApplied = true;
     }
 
-    applyLedFixedLayers();
-    for (timId_e timId = 0; timId < ARRAYLEN(layerTable); timId++) {
+    for (; timId < ARRAYLEN(layerTable); timId++) {
         uint32_t *timer = &timerVal[timId];
         bool updateNow = timActive & (1 << timId);
         (*layerTable[timId])(updateNow, timer);
+        if (cmpTimeUs(micros(), startTime) > LED_TARGET_UPDATE_US) {
+            // Come back and complete this quickly
+            return LED_PROFILE_FAST;
+        }
     }
-    ws2811UpdateStrip((ledStripFormatRGB_e) ledStripConfig()->ledstrip_grb_rgb, ledStripConfig()->ledstrip_brightness);
+
+    // Reset state for next iteration
+    timActive = 0;
+    fixedLayersApplied = false;
+    timId = 0;
+
+    return LED_PROFILE_ADVANCE;
 }
 
 bool parseColor(int index, const char *colorConfig)
@@ -1164,11 +1236,15 @@ void ledStripEnable(void)
 
 void ledStripDisable(void)
 {
-    ledStripEnabled = false;
-    previousProfileColorIndex = COLOR_UNDEFINED;
+    if (ledStripEnabled) {
+        ledStripEnabled = false;
+        previousProfileColorIndex = COLOR_UNDEFINED;
 
-    setStripColor(&HSV(BLACK));
-    ws2811UpdateStrip((ledStripFormatRGB_e)ledStripConfig()->ledstrip_grb_rgb, ledStripConfig()->ledstrip_brightness);
+        setStripColor(&HSV(BLACK));
+
+        // Multiple calls may be required as normally broken into multiple parts
+        while (!ws2811UpdateStrip((ledStripFormatRGB_e)ledStripConfig()->ledstrip_grb_rgb, ledStripConfig()->ledstrip_brightness));
+    }
 }
 
 void ledStripInit(void)
@@ -1193,7 +1269,7 @@ static uint8_t selectVisualBeeperColor(uint8_t colorIndex)
     }
 }
 
-static void applySimpleProfile(timeUs_t currentTimeUs)
+static ledProfileSequence_t applySimpleProfile(timeUs_t currentTimeUs)
 {
     static timeUs_t colorUpdateTimeUs = 0;
     uint8_t colorIndex = COLOR_BLACK;
@@ -1213,6 +1289,24 @@ static void applySimpleProfile(timeUs_t currentTimeUs)
         switch (ledStripConfig()->ledstrip_profile) {
             case LED_PROFILE_RACE:
                 colorIndex = ledStripConfig()->ledstrip_race_color;
+#ifdef USE_VTX_COMMON
+                if (colorIndex == COLOR_BLACK) {
+                    // ledstrip_race_color is not set. Set color based on VTX frequency
+                    const vtxDevice_t *vtxDevice = vtxCommonDevice();
+                    if (vtxDevice) {
+                        uint16_t freq;
+                        uint8_t const band = vtxSettingsConfigMutable()->band;
+                        uint8_t const channel = vtxSettingsConfig()->channel;
+                        if (band && channel) {
+                            freq = vtxCommonLookupFrequency(vtxDevice, band, channel);
+                        } else {
+                            // Direct frequency is used
+                            freq = vtxSettingsConfig()->freq;
+                        }
+                        colorIndex = getColorByVtxFrequency(freq);
+                    }
+                }
+#endif
                 break;
 
             case LED_PROFILE_BEACON: {
@@ -1241,16 +1335,28 @@ static void applySimpleProfile(timeUs_t currentTimeUs)
     }
 
     if ((colorIndex != previousProfileColorIndex) || (currentTimeUs >= colorUpdateTimeUs)) {
-        setStripColor(&hsv[colorIndex]);
-        ws2811UpdateStrip((ledStripFormatRGB_e)ledStripConfig()->ledstrip_grb_rgb, ledStripConfig()->ledstrip_brightness);
+        setStripColor(&ledStripStatusModeConfig()->colors[colorIndex]);
         previousProfileColorIndex = colorIndex;
         colorUpdateTimeUs = currentTimeUs + PROFILE_COLOR_UPDATE_INTERVAL_US;
+        return LED_PROFILE_ADVANCE;
     }
+
+    return LED_PROFILE_SLOW;
 }
 
+timeUs_t executeTimeUs;
 void ledStripUpdate(timeUs_t currentTimeUs)
 {
-    UNUSED(currentTimeUs);
+    static uint16_t ledStateDurationFractionUs[2] = { 0 };
+    static bool applyProfile = true;
+    static ledProfileSequence_t ledProfileSequence = LED_PROFILE_SLOW;
+    static uint8_t updateIterations = 0;
+    bool ledCurrentState = applyProfile;
+
+    if (ledProfileSequence != LED_PROFILE_SLOW) {
+        updateIterations++;
+        schedulerIgnoreTaskExecRate();
+    }
 
     if (!isWS2811LedStripReady()) {
         // Call schedulerIgnoreTaskExecTime() unless data is being processed
@@ -1265,26 +1371,55 @@ void ledStripUpdate(timeUs_t currentTimeUs)
     }
 
     if (ledStripEnabled) {
-        switch (ledStripConfig()->ledstrip_profile) {
+        if (applyProfile) {
+
+            switch (ledStripConfig()->ledstrip_profile) {
 #ifdef USE_LED_STRIP_STATUS_MODE
-            case LED_PROFILE_STATUS: {
-                applyStatusProfile(currentTimeUs);
-                break;
-            }
+                case LED_PROFILE_STATUS: {
+                    ledProfileSequence = applyStatusProfile(currentTimeUs);
+                    break;
+                }
 #endif
-            case LED_PROFILE_RACE:
-            case LED_PROFILE_BEACON: {
-                applySimpleProfile(currentTimeUs);
-                break;
+                case LED_PROFILE_RACE:
+                case LED_PROFILE_BEACON: {
+                    ledProfileSequence = applySimpleProfile(currentTimeUs);
+                    break;
+                }
+
+                default:
+                    break;
             }
 
-            default:
-                break;
+            if (ledProfileSequence != LED_PROFILE_SLOW) {
+                if (ledProfileSequence == LED_PROFILE_ADVANCE) {
+                    applyProfile = false;
+                }
+                // Reschedule the fast update
+                rescheduleTask(TASK_SELF, TASK_PERIOD_HZ(TASK_LEDSTRIP_RATE_FAST_HZ));
+            }
+        } else {
+            // Profile is applied, so now update the LEDs
+            if (ws2811UpdateStrip((ledStripFormatRGB_e) ledStripConfig()->ledstrip_grb_rgb, ledStripConfig()->ledstrip_brightness)) {
+                applyProfile = true;
+                // Restore the default LED task rate
+                ledProfileSequence = LED_PROFILE_SLOW;
+                rescheduleTask(TASK_SELF, TASK_PERIOD_HZ(TASK_LEDSTRIP_RATE_HZ) - updateIterations * TASK_PERIOD_HZ(TASK_LEDSTRIP_RATE_FAST_HZ));
+                updateIterations = 0;
+            }
         }
-    } else {
-        // Call schedulerIgnoreTaskExecTime() unless data is being processed
-        schedulerIgnoreTaskExecTime();
     }
+
+    if (!schedulerGetIgnoreTaskExecTime()) {
+        executeTimeUs = micros() - currentTimeUs;
+        if (executeTimeUs > (ledStateDurationFractionUs[ledCurrentState] >> LED_EXEC_TIME_SHIFT)) {
+            ledStateDurationFractionUs[ledCurrentState] = executeTimeUs << LED_EXEC_TIME_SHIFT;
+        } else if (ledStateDurationFractionUs[ledCurrentState] > 0) {
+            // Slowly decay the max time
+            ledStateDurationFractionUs[ledCurrentState]--;
+        }
+    }
+
+    schedulerSetNextStateTime((ledStateDurationFractionUs[applyProfile] >> LED_EXEC_TIME_SHIFT) + LED_TASK_MARGIN);
 }
 
 uint8_t getLedProfile(void)

@@ -42,6 +42,7 @@ typedef enum {
     BUS_ABORT
 } busStatus_e;
 
+struct extDevice_s;
 
 // Bus interface, independent of connected device
 typedef struct busDevice_s {

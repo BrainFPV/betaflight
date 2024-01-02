@@ -36,7 +36,7 @@
 #include "config/feature.h"
 
 #include "drivers/accgyro/accgyro.h"
-#include "drivers/camera_control.h"
+#include "drivers/camera_control_impl.h"
 #include "drivers/compass/compass.h"
 #include "drivers/sensor.h"
 #include "drivers/serial.h"
@@ -82,6 +82,7 @@
 #include "pg/motor.h"
 
 #include "rx/rx.h"
+#include "rx/rc_stats.h"
 
 #include "scheduler/scheduler.h"
 
@@ -103,14 +104,7 @@
 #endif
 
 #ifdef USE_USB_CDC_HID
-//TODO: Make it platform independent in the future
-#ifdef STM32F4
-#include "vcpf4/usbd_cdc_vcp.h"
-#include "usbd_hid_core.h"
-#elif defined(STM32F7)
-#include "usbd_cdc_interface.h"
-#include "usbd_hid.h"
-#endif
+#include "io/usb_cdc_hid.h"
 #endif
 
 #if defined(BRAINFPV)
@@ -265,8 +259,6 @@ static void taskGpsRescue(timeUs_t currentTimeUs)
 
     if (gpsRescueIsConfigured()) {
         gpsRescueUpdate();
-    } else {
-        schedulerIgnoreTaskStateTime();
     }
 }
 #endif
@@ -399,7 +391,7 @@ task_attribute_t task_attributes[TASK_COUNT] = {
 #endif
 
 #ifdef USE_MAG
-    [TASK_COMPASS] = DEFINE_TASK("COMPASS", NULL, NULL, taskUpdateMag, TASK_PERIOD_HZ(10), TASK_PRIORITY_LOW),
+    [TASK_COMPASS] = DEFINE_TASK("COMPASS", NULL, NULL, taskUpdateMag, TASK_PERIOD_HZ(TASK_COMPASS_RATE_HZ), TASK_PRIORITY_LOW),
 #endif
 
 #ifdef USE_BARO
@@ -423,7 +415,7 @@ task_attribute_t task_attributes[TASK_COUNT] = {
 #endif
 
 #ifdef USE_LED_STRIP
-    [TASK_LEDSTRIP] = DEFINE_TASK("LEDSTRIP", NULL, NULL, ledStripUpdate, TASK_PERIOD_HZ(100), TASK_PRIORITY_LOW),
+    [TASK_LEDSTRIP] = DEFINE_TASK("LEDSTRIP", NULL, NULL, ledStripUpdate, TASK_PERIOD_HZ(TASK_LEDSTRIP_RATE_HZ), TASK_PRIORITY_LOW),
 #endif
 
 #ifdef USE_BST
@@ -465,6 +457,11 @@ task_attribute_t task_attributes[TASK_COUNT] = {
 #ifdef USE_CRSF_V3
     [TASK_SPEED_NEGOTIATION] = DEFINE_TASK("SPEED_NEGOTIATION", NULL, NULL, speedNegotiationProcess, TASK_PERIOD_HZ(100), TASK_PRIORITY_LOW),
 #endif
+
+#ifdef USE_RC_STATS
+    [TASK_RC_STATS] = DEFINE_TASK("RC_STATS", NULL, NULL, rcStatsUpdate, TASK_PERIOD_HZ(100), TASK_PRIORITY_LOW),
+#endif
+
 };
 
 task_t *getTask(unsigned taskId)
@@ -652,5 +649,12 @@ void tasksInit(void)
     const bool useCRSF = rxRuntimeState.serialrxProvider == SERIALRX_CRSF;
     setTaskEnabled(TASK_SPEED_NEGOTIATION, useCRSF);
 #endif
-}
 
+#ifdef SIMULATOR_MULTITHREAD
+    rescheduleTask(TASK_RX, 1);
+#endif
+
+#ifdef USE_RC_STATS
+    setTaskEnabled(TASK_RC_STATS, true);
+#endif
+}

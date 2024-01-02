@@ -15,9 +15,10 @@
 # Things that the user might override on the commandline
 #
 
-# The target to build, see VALID_TARGETS below
-TARGET    ?= STM32F405
-BOARD     ?= 
+# The target to build, see BASE_TARGETS below
+DEFAULT_TARGET ?= STM32F405
+TARGET    ?=
+CONFIG    ?=
 
 # Compile-time options
 OPTIONS   ?=
@@ -63,33 +64,44 @@ INCLUDE_DIRS    := $(SRC_DIR) \
                    $(ROOT)/src/main/target \
                    $(ROOT)/src/main/startup
 LINKER_DIR      := $(ROOT)/src/link
+MAKE_SCRIPT_DIR := $(ROOT)/mk
 
 ## V                 : Set verbosity level based on the V= parameter
 ##                     V=0 Low
 ##                     V=1 High
-include $(ROOT)/make/build_verbosity.mk
+include $(MAKE_SCRIPT_DIR)/build_verbosity.mk
 
 # Build tools, so we all share the same versions
 # import macros common to all supported build systems
-include $(ROOT)/make/system-id.mk
+include $(MAKE_SCRIPT_DIR)/system-id.mk
 
 # developer preferences, edit these at will, they'll be gitignored
--include $(ROOT)/make/local.mk
+ifneq ($(wildcard $(MAKE_SCRIPT_DIR)/local.mk),)
+include $(MAKE_SCRIPT_DIR)/local.mk
+endif
 
 # pre-build sanity checks
-include $(ROOT)/make/checks.mk
+include $(MAKE_SCRIPT_DIR)/checks.mk
+
+# basic target list
+BASE_TARGETS := $(sort $(notdir $(patsubst %/,%,$(dir $(wildcard $(ROOT)/src/main/target/*/target.mk)))))
 
 # configure some directories that are relative to wherever ROOT_DIR is located
-TOOLS_DIR ?= $(ROOT)/tools
-DL_DIR    := $(ROOT)/downloads
+TOOLS_DIR  ?= $(ROOT)/tools
+DL_DIR     := $(ROOT)/downloads
+CONFIG_DIR ?= $(BETAFLIGHT_CONFIG)
+ifeq ($(CONFIG_DIR),)
+CONFIG_DIR := $(ROOT)/src/config
+endif
+DIRECTORIES := $(DL_DIR) $(TOOLS_DIR)
 
 export RM := rm
 
 # import macros that are OS specific
-include $(ROOT)/make/$(OSFAMILY).mk
+include $(MAKE_SCRIPT_DIR)/$(OSFAMILY).mk
 
 # include the tools makefile
-include $(ROOT)/make/tools.mk
+include $(MAKE_SCRIPT_DIR)/tools.mk
 
 # default xtal value for F4 targets
 HSE_VALUE       ?= 8000000
@@ -111,23 +123,38 @@ endif
 GIT_TAG =  $(shell git describe --tags)
 GIT_SHA1 = $(shell git rev-parse HEAD)
 
+# Search path for sources
+VPATH           := $(SRC_DIR):$(SRC_DIR)/startup
+FATFS_DIR        = $(ROOT)/lib/main/FatFS
+FATFS_SRC        = $(notdir $(wildcard $(FATFS_DIR)/*.c))
+CSOURCES        := $(shell find $(SRC_DIR) -name '*.c')
+
 FC_VER_MAJOR := $(shell grep " FC_VERSION_MAJOR" src/main/build/version.h | awk '{print $$3}' )
 FC_VER_MINOR := $(shell grep " FC_VERSION_MINOR" src/main/build/version.h | awk '{print $$3}' )
 FC_VER_PATCH := $(shell grep " FC_VERSION_PATCH" src/main/build/version.h | awk '{print $$3}' )
 
 GIT_TAG_EXACT := $(shell git describe --exact-match HEAD 2>&1)
-ifneq (,$(findstring fatal,$(GIT_TAG_EXACT)))
-FC_VER := $(FC_VER_MAJOR).$(FC_VER_MINOR).$(FC_VER_PATCH)
-else
-    FC_VER := $(GIT_TAG_EXACT)
+FC_VER       := $(FC_VER_MAJOR).$(FC_VER_MINOR).$(FC_VER_PATCH)
+
+# import config handling
+include $(MAKE_SCRIPT_DIR)/config.mk
+
+ifeq ($(CONFIG),)
+ifeq ($(TARGET),)
+TARGET := $(DEFAULT_TARGET)
+endif
 endif
 
-# Search path for sources
-VPATH           := $(SRC_DIR):$(SRC_DIR)/startup
-FATFS_DIR       = $(ROOT)/lib/main/FatFS
-FATFS_SRC       = $(notdir $(wildcard $(FATFS_DIR)/*.c))
+# default xtal value
+HSE_VALUE       ?= 8000000
 
-CSOURCES        := $(shell find $(SRC_DIR) -name '*.c')
+CI_TARGETS       := $(BASE_TARGETS) $(filter CRAZYBEEF4SX1280 CRAZYBEEF4FR IFLIGHT_BLITZ_F722 NUCLEOF446 SPRACINGH7EXTREME SPRACINGH7RF, $(BASE_CONFIGS))
+include $(ROOT)/src/main/target/$(TARGET)/target.mk
+
+REVISION := norevision
+ifeq ($(shell git diff --shortstat),)
+REVISION := $(shell git log -1 --format="%h")
+endif
 
 LD_FLAGS        :=
 EXTRA_LD_FLAGS  :=
@@ -139,10 +166,10 @@ ifeq ($(DEBUG),GDB)
 OPTIMISE_DEFAULT      := -Og
 
 LTO_FLAGS             := $(OPTIMISE_DEFAULT)
-DEBUG_FLAGS            = -ggdb3 -gdwarf-5 -DDEBUG
+DEBUG_FLAGS            = -ggdb2 -gdwarf-5 -DDEBUG
 else
 ifeq ($(DEBUG),INFO)
-DEBUG_FLAGS            = -ggdb3
+DEBUG_FLAGS            = -ggdb2
 endif
 OPTIMISATION_BASE     := -flto -fuse-linker-plugin -ffast-math -fmerge-all-constants
 OPTIMISE_DEFAULT      := -O2
@@ -152,14 +179,28 @@ OPTIMISE_SIZE         := -Os
 LTO_FLAGS             := $(OPTIMISATION_BASE) $(OPTIMISE_SPEED)
 endif
 
-VPATH 			:= $(VPATH):$(ROOT)/make/mcu
-VPATH 			:= $(VPATH):$(ROOT)/make
+VPATH 			:= $(VPATH):$(MAKE_SCRIPT_DIR)/mcu
+VPATH 			:= $(VPATH):$(MAKE_SCRIPT_DIR)
 
 # start specific includes
-include $(ROOT)/make/mcu/$(TARGET_MCU).mk
+ifeq ($(TARGET_MCU),)
+$(error No TARGET_MCU specified. Is the target.mk valid for $(TARGET)?)
+endif
+
+ifeq ($(TARGET_MCU_FAMILY),)
+$(error No TARGET_MCU_FAMILY specified. Is the target.mk valid for $(TARGET)?)
+endif
+
+TARGET_FLAGS  	:= -D$(TARGET) -D$(TARGET_MCU_FAMILY) $(TARGET_FLAGS)
+
+ifneq ($(CONFIG),)
+TARGET_FLAGS  	:= $(TARGET_FLAGS) -DUSE_CONFIG
+endif
+
+include $(MAKE_SCRIPT_DIR)/mcu/$(TARGET_MCU_FAMILY).mk
 
 # openocd specific includes
-include $(ROOT)/make/openocd.mk
+include $(MAKE_SCRIPT_DIR)/openocd.mk
 
 # Configure default flash sizes for the targets (largest size specified gets hit first) if flash not specified already.
 ifeq ($(TARGET_FLASH_SIZE),)
@@ -181,11 +222,6 @@ TARGET_DIR_SRC = $(notdir $(wildcard $(TARGET_DIR)/*.c))
 
 .DEFAULT_GOAL := hex
 
-ifeq ($(CUSTOM_DEFAULTS_EXTENDED),yes)
-TARGET_FLAGS += -DUSE_CUSTOM_DEFAULTS=
-EXTRA_LD_FLAGS += -Wl,--defsym=USE_CUSTOM_DEFAULTS_EXTENDED=1
-endif
-
 INCLUDE_DIRS    := $(INCLUDE_DIRS) \
                    $(ROOT)/lib/main/MAVLink
 
@@ -194,7 +230,7 @@ INCLUDE_DIRS    := $(INCLUDE_DIRS) \
 
 VPATH           := $(VPATH):$(TARGET_DIR)
 
-include $(ROOT)/make/source.mk
+include $(MAKE_SCRIPT_DIR)/source.mk
 
 ###############################################################################
 # Things that might need changing to use different tools
@@ -253,6 +289,7 @@ CFLAGS     += $(ARCH_FLAGS) \
               -D'__TARGET__="$(TARGET)"' \
               -D'__REVISION__="$(REVISION)"' \
               -D'__GIT_TAG__="$(GIT_TAG)"' \
+              $(CONFIG_REVISION_DEFINE) \
               -pipe \
               -MMD -MP \
               $(EXTRA_FLAGS)
@@ -292,30 +329,39 @@ CPPCHECK        = cppcheck $(CSOURCES) --enable=all --platform=unix64 \
                   $(addprefix -I,$(INCLUDE_DIRS)) \
                   -I/usr/include -I/usr/include/linux
 
-TARGET_BASENAME = $(BIN_DIR)/$(FORKNAME)_$(FC_VER)_$(TARGET)
+TARGET_NAME := $(TARGET)
 
+ifneq ($(CONFIG),)
+TARGET_NAME := $(TARGET_NAME)_$(CONFIG)
+endif
+
+ifeq ($(REV),yes)
+TARGET_NAME := $(TARGET_NAME)_$(REVISION)
+endif
+
+TARGET_FULLNAME = $(FORKNAME)_$(FC_VER)_$(TARGET_NAME)
 #
 # Things we will build
 #
-TARGET_BIN      = $(TARGET_BASENAME).bin
-TARGET_HEX      = $(TARGET_BASENAME).hex
-TARGET_HEX_REV  = $(TARGET_BASENAME)_$(REVISION).hex
-TARGET_DFU      = $(TARGET_BASENAME).dfu
-TARGET_ZIP      = $(TARGET_BASENAME).zip
-TARGET_ELF      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET).elf
-TARGET_EXST_ELF = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET)_EXST.elf
-TARGET_UNPATCHED_BIN = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET)_UNPATCHED.bin
-TARGET_LST      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET).lst
-TARGET_OBJS     = $(addsuffix .o,$(addprefix $(OBJECT_DIR)/$(TARGET)/,$(basename $(SRC))))
-TARGET_DEPS     = $(addsuffix .d,$(addprefix $(OBJECT_DIR)/$(TARGET)/,$(basename $(SRC))))
-TARGET_MAP      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET).map
+TARGET_BIN      = $(BIN_DIR)/$(TARGET_FULLNAME).bin
+TARGET_HEX      = $(BIN_DIR)/$(TARGET_FULLNAME).hex
+TARGET_DFU      = $(BIN_DIR)/$(TARGET_FULLNAME).dfu
+TARGET_ZIP      = $(BIN_DIR)/$(TARGET_FULLNAME).zip
+TARGET_OBJ_DIR  = $(OBJECT_DIR)/$(TARGET_NAME)
+TARGET_ELF      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET_NAME).elf
+TARGET_EXST_ELF = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET_NAME)_EXST.elf
+TARGET_UNPATCHED_BIN = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET_NAME)_UNPATCHED.bin
+TARGET_LST      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET_NAME).lst
+TARGET_OBJS     = $(addsuffix .o,$(addprefix $(TARGET_OBJ_DIR)/,$(basename $(SRC))))
+TARGET_DEPS     = $(addsuffix .d,$(addprefix $(TARGET_OBJ_DIR)/,$(basename $(SRC))))
+TARGET_MAP      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET_NAME).map
 
 TARGET_BRAIN_BIN = $(TARGET_BASENAME)_brainfpv.bin
 
-TARGET_EXST_HASH_SECTION_FILE = $(OBJECT_DIR)/$(TARGET)/exst_hash_section.bin
+TARGET_EXST_HASH_SECTION_FILE = $(TARGET_OBJ_DIR)/exst_hash_section.bin
 
 TARGET_EF_HASH      := $(shell echo -n "$(EXTRA_FLAGS)" | openssl dgst -md5 | awk '{print $$2;}')
-TARGET_EF_HASH_FILE := $(OBJECT_DIR)/$(TARGET)/.efhash_$(TARGET_EF_HASH)
+TARGET_EF_HASH_FILE := $(TARGET_OBJ_DIR)/.efhash_$(TARGET_EF_HASH)
 
 CLEAN_ARTIFACTS := $(TARGET_BIN)
 CLEAN_ARTIFACTS += $(TARGET_HEX_REV) $(TARGET_HEX)
@@ -324,7 +370,7 @@ CLEAN_ARTIFACTS += $(TARGET_LST)
 CLEAN_ARTIFACTS += $(TARGET_DFU)
 
 # Make sure build date and revision is updated on every incremental build
-$(OBJECT_DIR)/$(TARGET)/build/version.o : $(SRC)
+$(TARGET_OBJ_DIR)/build/version.o : $(SRC)
 
 # List of buildable ELF files and their object dependencies.
 # It would be nice to compute these lists, but that seems to be just beyond make.
@@ -382,11 +428,8 @@ $(TARGET_BIN): $(TARGET_UNPATCHED_BIN)
 	@echo "Patching MD5 hash into HASH section" "$(STDOUT)"
 	$(V1) cat $(TARGET_UNPATCHED_BIN).md5 | awk '{printf("%08x: %s",64-16,$$2);}' | xxd -r - $(TARGET_EXST_HASH_SECTION_FILE)
 
-# For some currently unknown reason, OBJCOPY, with only input/output files, will generate a file around 2GB for the H730 unless we remove an unused-section
-# As a workaround drop the ._user_heap_stack section, which is only used during build to show errors if there's not enough space for the heap/stack. 
-# The issue can be seen with `readelf -S $(TARGET_EXST_ELF)' vs `readelf -S $(TARGET_ELF)`
 	$(V1) @echo "Patching updated HASH section into $(TARGET_EXST_ELF)" "$(STDOUT)"
-	$(OBJCOPY) $(TARGET_ELF) $(TARGET_EXST_ELF) --remove-section ._user_heap_stack --update-section .exst_hash=$(TARGET_EXST_HASH_SECTION_FILE)
+	$(OBJCOPY) $(TARGET_ELF) $(TARGET_EXST_ELF) --update-section .exst_hash=$(TARGET_EXST_HASH_SECTION_FILE)
 
 	$(V1) $(READELF) -S $(TARGET_EXST_ELF)
 	$(V1) $(READELF) -l $(TARGET_EXST_ELF)
@@ -412,7 +455,7 @@ $(TARGET_BRAIN_BIN): $(TARGET_HEX)
 endif
 
 $(TARGET_ELF): $(TARGET_OBJS) $(LD_SCRIPT) $(LD_SCRIPTS)
-	@echo "Linking $(TARGET)" "$(STDOUT)"
+	@echo "Linking $(TARGET_NAME)" "$(STDOUT)"
 	$(V1) $(CROSS_CC) -o $@ $(filter-out %.ld,$^) $(LD_FLAGS)
 	$(V1) $(SIZE) $(TARGET_ELF)
 	$(V1) cp $(TARGET_ELF) $(BIN_DIR)/$(FORKNAME)_$(TARGET).elf
@@ -426,7 +469,7 @@ define compile_file
 endef
 
 ifeq ($(DEBUG),GDB)
-$(OBJECT_DIR)/$(TARGET)/%.o: %.c
+$(TARGET_OBJ_DIR)/%.o: %.c
 	$(V1) mkdir -p $(dir $@)
 	$(V1) $(if $(findstring $<,$(NOT_OPTIMISED_SRC)), \
 		$(call compile_file,not optimised, $(CC_NO_OPTIMISATION)) \
@@ -434,7 +477,7 @@ $(OBJECT_DIR)/$(TARGET)/%.o: %.c
 		$(call compile_file,debug,$(CC_DEBUG_OPTIMISATION)) \
 	)
 else
-$(OBJECT_DIR)/$(TARGET)/%.o: %.c
+$(TARGET_OBJ_DIR)/%.o: %.c
 	$(V1) mkdir -p $(dir $@)
 	$(V1) $(if $(findstring $<,$(NOT_OPTIMISED_SRC)), \
 		$(call compile_file,not optimised,$(CC_NO_OPTIMISATION)) \
@@ -452,12 +495,12 @@ $(OBJECT_DIR)/$(TARGET)/%.o: %.c
 endif
 
 # Assemble
-$(OBJECT_DIR)/$(TARGET)/%.o: %.s
+$(TARGET_OBJ_DIR)/%.o: %.s
 	$(V1) mkdir -p $(dir $@)
 	@echo "%% $(notdir $<)" "$(STDOUT)"
 	$(V1) $(CROSS_CC) -c -o $@ $(ASFLAGS) $<
 
-$(OBJECT_DIR)/$(TARGET)/%.o: %.S
+$(TARGET_OBJ_DIR)/%.o: %.S
 	$(V1) mkdir -p $(dir $@)
 	@echo "%% $(notdir $<)" "$(STDOUT)"
 	$(V1) $(CROSS_CC) -c -o $@ $(ASFLAGS) $<
@@ -465,25 +508,22 @@ $(OBJECT_DIR)/$(TARGET)/%.o: %.S
 
 ## all               : Build all currently built targets
 all: $(CI_TARGETS)
-## all_all : Build all targets (including legacy / unsupported)
-all_all: $(VALID_TARGETS)
 
-$(VALID_TARGETS):
-	$(V0) @echo "Building $@" && \
-	$(MAKE) binary hex brainfpv_bin TARGET=$@ && \
+$(BASE_TARGETS):
+	$(V0) @echo "Building target $@" && \
+	$(MAKE) hex TARGET=$@ && \
 	echo "Building $@ succeeded."
 
-$(NOBUILD_TARGETS):
-	$(MAKE) TARGET=$@
+TARGETS_CLEAN = $(addsuffix _clean,$(BASE_TARGETS))
 
-TARGETS_CLEAN = $(addsuffix _clean,$(VALID_TARGETS))
+CONFIGS_CLEAN = $(addsuffix _clean,$(BASE_CONFIGS))
 
 ## clean             : clean up temporary / machine-generated files
 clean:
-	@echo "Cleaning $(TARGET)"
+	@echo "Cleaning $(TARGET_NAME)"
 	$(V0) rm -f $(CLEAN_ARTIFACTS)
-	$(V0) rm -rf $(OBJECT_DIR)/$(TARGET)
-	@echo "Cleaning $(TARGET) succeeded."
+	$(V0) rm -rf $(TARGET_OBJ_DIR)
+	@echo "Cleaning $(TARGET_NAME) succeeded."
 
 ## test_clean        : clean up temporary / machine-generated files (tests)
 test-%_clean:
@@ -496,10 +536,14 @@ test_clean:
 $(TARGETS_CLEAN):
 	$(V0) $(MAKE) -j TARGET=$(subst _clean,,$@) clean
 
-## clean_all         : clean all valid targets
+## <CONFIG>_clean    : clean up one specific target (alias for above)
+$(CONFIGS_CLEAN):
+	$(V0) $(MAKE) -j CONFIG=$(subst _clean,,$@) clean
+
+## clean_all         : clean all targets
 clean_all: $(TARGETS_CLEAN) test_clean
 
-TARGETS_FLASH = $(addsuffix _flash,$(VALID_TARGETS))
+TARGETS_FLASH = $(addsuffix _flash,$(BASE_TARGETS))
 
 ## <TARGET>_flash    : build and flash a target
 $(TARGETS_FLASH):
@@ -537,7 +581,7 @@ openocd-gdb: $(TARGET_ELF)
 	$(V0) $(OPENOCD_COMMAND) & $(CROSS_GDB) $(TARGET_ELF) -ex "target remote localhost:3333" -ex "load"
 endif
 
-TARGETS_ZIP = $(addsuffix _zip,$(VALID_TARGETS))
+TARGETS_ZIP = $(addsuffix _zip,$(BASE_TARGETS))
 
 ## <TARGET>_zip    : build target and zip it (useful for posting to GitHub)
 $(TARGETS_ZIP):
@@ -556,13 +600,11 @@ hex:
 brainfpv_bin:
 	$(MAKE) -j $(TARGET_BRAIN_BIN)
 
-TARGETS_REVISION = $(addsuffix _rev,$(VALID_TARGETS))
+TARGETS_REVISION = $(addsuffix _rev,$(BASE_TARGETS))
+
 ## <TARGET>_rev    : build target and add revision to filename
 $(TARGETS_REVISION):
-	$(V0) $(MAKE) hex_rev TARGET=$(subst _rev,,$@)
-
-hex_rev: hex
-	$(V0) mv -f $(TARGET_HEX) $(TARGET_HEX_REV)
+	$(V0) $(MAKE) hex REV=yes TARGET=$(subst _rev,,$@)
 
 all_rev: $(addsuffix _rev,$(CI_TARGETS))
 
@@ -581,10 +623,7 @@ cppcheck-result.xml: $(CSOURCES)
 	$(V0) $(CPPCHECK) --xml-version=2 2> cppcheck-result.xml
 
 # mkdirs
-$(DL_DIR):
-	mkdir -p $@
-
-$(TOOLS_DIR):
+$(DIRECTORIES):
 	mkdir -p $@
 
 ## version           : print firmware version
@@ -592,22 +631,27 @@ version:
 	@echo $(FC_VER)
 
 ## help              : print this help message and exit
-help: Makefile make/tools.mk
+help: Makefile mk/tools.mk
 	@echo ""
 	@echo "Makefile for the $(FORKNAME) firmware"
 	@echo ""
 	@echo "Usage:"
-	@echo "        make [V=<verbosity>] [TARGET=<target>] [OPTIONS=\"<options>\"]"
+	@echo "        make [V=<verbosity>] [TARGET=<target>] [OPTIONS=\"<options>\"] [EXTRA_FLAGS=\"<extra_flags>\"]"
 	@echo "Or:"
-	@echo "        make <target> [V=<verbosity>] [OPTIONS=\"<options>\"]"
+	@echo "        make <target> [V=<verbosity>] [OPTIONS=\"<options>\"] [EXTRA_FLAGS=\"<extra_flags>\"]"
+	@echo "Or:"
+	@echo "        make <config-target> [V=<verbosity>] [OPTIONS=\"<options>\"] [EXTRA_FLAGS=\"<extra_flags>\"]"
 	@echo ""
-	@echo "Valid TARGET values are: $(VALID_TARGETS)"
+	@echo "To pupulate configuration targets:"
+	@echo "        make configs"
+	@echo ""
+	@echo "Valid TARGET values are: $(BASE_TARGETS)"
 	@echo ""
 	@sed -n 's/^## //p' $?
 
 ## targets           : print a list of all valid target platforms (for consumption by scripts)
 targets:
-	@echo "Valid targets:       $(VALID_TARGETS)"
+	@echo "Valid targets:       $(BASE_TARGETS)"
 	@echo "Built targets:       $(CI_TARGETS)"
 	@echo "Default target:      $(TARGET)"
 
@@ -616,7 +660,7 @@ targets-ci-print:
 
 ## target-mcu        : print the MCU type of the target
 target-mcu:
-	@echo $(TARGET_MCU)
+	@echo "$(TARGET_MCU_FAMILY) : $(TARGET_MCU)"
 
 ## targets-by-mcu    : make all targets that have a MCU_TYPE mcu
 targets-by-mcu:
@@ -636,26 +680,6 @@ targets-by-mcu:
 		fi; \
 	done
 	@echo
-
-## targets-f4        : make all F4 targets
-targets-f4:
-	$(V1) $(MAKE) -s targets-by-mcu MCU_TYPE=STM32F4 TARGETS="$(VALID_TARGETS)" DO_BUILD=1
-
-targets-f4-print:
-	$(V1) $(MAKE) -s targets-by-mcu MCU_TYPE=STM32F4 TARGETS="$(VALID_TARGETS)"
-
-targets-ci-f4-print:
-	$(V1) $(MAKE) -s targets-by-mcu MCU_TYPE=STM32F4 TARGETS="$(CI_TARGETS)"
-
-## targets-f7        : make all F7 targets
-targets-f7:
-	$(V1) $(MAKE) -s targets-by-mcu MCU_TYPE=STM32F7 TARGETS="$(VALID_TARGETS)" DO_BUILD=1
-
-targets-f7-print:
-	$(V1) $(MAKE) -s targets-by-mcu MCU_TYPE=STM32F7 TARGETS="$(VALID_TARGETS)"
-
-targets-ci-f7-print:
-	$(V1) $(MAKE) -s targets-by-mcu MCU_TYPE=STM32F7 TARGETS="$(CI_TARGETS)"
 
 ## test              : run the Betaflight test suite
 ## junittest         : run the Betaflight test suite, producing Junit XML result files.
@@ -678,12 +702,12 @@ test_%:
 
 $(TARGET_EF_HASH_FILE):
 	$(V1) mkdir -p $(dir $@)
-	$(V0) rm -f $(OBJECT_DIR)/$(TARGET)/.efhash_*
+	$(V0) rm -f $(TARGET_OBJ_DIR)/.efhash_*
 	@echo "EF HASH -> $(TARGET_EF_HASH_FILE)"
 	$(V1) touch $(TARGET_EF_HASH_FILE)
 
 # rebuild everything when makefile changes or the extra flags have changed
-$(TARGET_OBJS): $(TARGET_EF_HASH_FILE) Makefile $(TARGET_DIR)/target.mk $(wildcard make/*)
+$(TARGET_OBJS): $(TARGET_EF_HASH_FILE) Makefile $(TARGET_DIR)/target.mk $(wildcard make/*) $(CONFIG_FILE)
 
 # include auto-generated dependencies
 -include $(TARGET_DEPS)

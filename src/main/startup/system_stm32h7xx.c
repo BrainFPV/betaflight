@@ -1,3 +1,7 @@
+// This module contains initialization code specific to STM32H7 MCUs.
+// It configures the RCC peripheral (system clocks) including scalars, and 
+// enables RCC clocks for peripherals.
+
 /**
   ******************************************************************************
   * @file    system_stm32h7xx.c
@@ -74,18 +78,22 @@
 #include "drivers/system.h"
 
 
+#define HSI_FREQ ((uint32_t)64000000) // Frequency of HSI is 64Mhz on all H7 variants.
+
+
+// If `HSE_VALUE` isn't specified, use HSI. This allows HSI to be selected as the PLL source
+// later in this file, and adjusts PLL scalers to use the HSI's frequency as the timing source.
 #if !defined  (HSE_VALUE)
-#define HSE_VALUE    ((uint32_t)25000000) /*!< Value of the External oscillator in Hz */
-#endif /* HSE_VALUE */
+#define PLL_SRC RCC_PLLSOURCE_HSI
+#define PLL_SRC_FREQ HSI_FREQ
+#else
+#define PLL_SRC RCC_PLLSOURCE_HSE
+#define PLL_SRC_FREQ HSE_VALUE
+#endif
 
 #if !defined  (CSI_VALUE)
 #define CSI_VALUE    ((uint32_t)4000000) /*!< Value of the Internal oscillator in Hz*/
 #endif /* CSI_VALUE */
-
-#if !defined  (HSI_VALUE)
-#define HSI_VALUE    ((uint32_t)64000000) /*!< Value of the Internal oscillator in Hz*/
-#endif /* HSI_VALUE */
-
 
 /**
   * @}
@@ -154,7 +162,7 @@
 /** @addtogroup STM32H7xx_System_Private_FunctionPrototypes
   * @{
   */
-#if defined (DATA_IN_ExtSRAM) || defined (DATA_IN_ExtSDRAM)
+#if defined(DATA_IN_ExtSRAM) || defined(DATA_IN_ExtSDRAM)
 static void SystemInit_ExtMemCtl(void);
 #endif /* DATA_IN_ExtSRAM || DATA_IN_ExtSDRAM */
 
@@ -240,8 +248,9 @@ pllConfig_t pll1ConfigRevV = {
 pllConfig_t pll1ConfigRevY = {
     .clockMhz = 400,
     .m = 4,
-    .n = 400,
+    .n = 800000000 / PLL_SRC_FREQ * 4, // Holds DIVN's output to DIVP at 800Mhz.
     .p = 2,
+    // Dividing PLLQ here by 8 keeps PLLQ1, used for SPI, below 200Mhz, required per the spec.
     .q = 8,
     .r = 5,
     .vos = PWR_REGULATOR_VOLTAGE_SCALE1,
@@ -252,8 +261,9 @@ pllConfig_t pll1ConfigRevY = {
 pllConfig_t pll1ConfigRevV = {
     .clockMhz = 480,
     .m = 4,
-    .n = 480,
+    .n = 960000000 / PLL_SRC_FREQ * 4, // Holds DIVN's output to DIVP at 960Mhz.
     .p = 2,
+    // Dividing PLLQ here by 8 keeps PLLQ1, used for SPI, below 200Mhz, required per the spec.
     .q = 8,
     .r = 5,
     .vos = PWR_REGULATOR_VOLTAGE_SCALE0,
@@ -292,8 +302,9 @@ pllConfig_t pll1ConfigRevV = {
 pllConfig_t pll1Config7A3 = {
     .clockMhz = 280,
     .m = 4,
-    .n = 280,
+    .n = 560000000 / PLL_SRC_FREQ * 4, // Holds DIVN's output to DIVP at 560Mhz.
     .p = 2,
+    // Dividing PLLQ here by 8 keeps PLLQ1, used for SPI, below 200Mhz, required per the spec.
     .q = 8,
     .r = 5,
     .vos = PWR_REGULATOR_VOLTAGE_SCALE0,
@@ -311,42 +322,25 @@ pllConfig_t pll1Config7A3 = {
 // Source for CRS input
 #define MCU_RCC_CRS_SYNC_SOURCE RCC_CRS_SYNC_SOURCE_USB1
 
-#elif defined(STM32H723xx) || defined(STM32H725xx)
-
-// Nominal max 550MHz
-
-pllConfig_t pll1Config72x = {
-    .clockMhz = 550,
-    .m = 4,
-    .n = 275,
-    .p = 1,
-    .q = 2,
-    .r = 2,
-    .vos = PWR_REGULATOR_VOLTAGE_SCALE0,
-    .vciRange = RCC_PLL1VCIRANGE_1,
-};
-
-#define MCU_HCLK_DIVIDER RCC_HCLK_DIV2
-
-// RM0468 (Rev.2) Table 16. 
-// 550MHz (AXI Interface clock) at VOS0 is 3WS
-#define MCU_FLASH_LATENCY FLASH_LATENCY_3
-
-#define MCU_RCC_CRS_SYNC_SOURCE RCC_CRS_SYNC_SOURCE_USB1
-
-#elif defined(STM32H730xx)
+#elif defined(STM32H723xx) || defined(STM32H725xx) || defined(STM32H730xx)
 
 // Nominal max 550MHz, but >520Mhz requires ECC to be disabled, CPUFREQ_BOOST set in option bytes and prevents OCTOSPI clock from running at the correct clock speed.
-// 4.9.24 FLASH option status register 2 (FLASH_OPTSR2_CUR)
-// "Bit 2CPUFREQ_BOOST: CPU frequency boost status bitThis bit indicates whether the CPU frequency can be boosted or not. When it is set, the ECC on ITCM and DTCM are no more used"
+// Unless CPUFREQ_BOOST in option bytes is enabled maximum CPU speed is limited to 520Mhz in VOS0.  VOS1 is limited to 400Mhz
+// References:
+// RM0468 Rev 3 "6.6.2 Voltage scaling".
+// RM0468 Rev 3 "4.9.24 FLASH option status register 2 (FLASH_OPTSR2_CUR)"
+// DS13312 Rev 2 "Table 13. General operating conditions (continued)"
+//
+// "Bit 2CPUFREQ_BOOST: CPU frequency boost status bit. This bit indicates whether the CPU frequency can be boosted or not. When it is set, the ECC on ITCM and DTCM are no more used"
 // ...
 // So use 520Mhz so that OCTOSPI clk can be 200Mhz with OCTOPSI prescaler 2 via PLL2R or 130Mhz with OCTOPSI prescaler 1 via PLL1Q
 
-pllConfig_t pll1Config73x = {
+pllConfig_t pll1Config72x73x = {
     .clockMhz = 520,
-    .m = 2,
-    .n = 130,
+    .m = 4,
+    .n = 520000000 / PLL_SRC_FREQ * 4, // Holds DIVN's output to DIVP at 520Mhz.
     .p = 1,
+    // Dividing PLLQ here by 4 keeps PLLQ1, used for SPI, below 200Mhz, required per the spec.
     .q = 4,
     .r = 2,
     .vos = PWR_REGULATOR_VOLTAGE_SCALE0,
@@ -355,7 +349,7 @@ pllConfig_t pll1Config73x = {
 
 #define MCU_HCLK_DIVIDER RCC_HCLK_DIV2
 
-// RM0468 (Rev.2) Table 16.
+// RM0468 (Rev.2) Table 16. 
 // 520MHz (AXI Interface clock) at VOS0 is 3WS
 #define MCU_FLASH_LATENCY FLASH_LATENCY_3
 
@@ -392,10 +386,8 @@ static void SystemClockHSE_Config(void)
     pll1Config = (HAL_GetREVID() == REV_ID_V) ? &pll1ConfigRevV : &pll1ConfigRevY;
 #elif defined(STM32H7A3xx) || defined(STM32H7A3xxQ)
     pll1Config = &pll1Config7A3;
-#elif defined(STM32H723xx) || defined(STM32H725xx)
-    pll1Config = &pll1Config72x;
-#elif defined(STM32H730xx)
-    pll1Config = &pll1Config73x;
+#elif defined(STM32H723xx) || defined(STM32H725xx) || defined(STM32H730xx)
+    pll1Config = &pll1Config72x73x;
 #else
 #error Unknown MCU type
 #endif
@@ -434,7 +426,7 @@ static void SystemClockHSE_Config(void)
     RCC_OscInitStruct.HSEState = RCC_HSE_ON; // Even Nucleo-H473ZI and Nucleo-H7A3ZI work without RCC_HSE_BYPASS
 
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+    RCC_OscInitStruct.PLL.PLLSource = PLL_SRC;
     RCC_OscInitStruct.PLL.PLLM = pll1Config->m;
     RCC_OscInitStruct.PLL.PLLN = pll1Config->n;
     RCC_OscInitStruct.PLL.PLLP = pll1Config->p;
@@ -684,9 +676,9 @@ void SystemClock_Config(void)
 #endif
 #endif
 
-# if defined(STM32H743xx) || defined(STM32H750xx) || defined(STM32H723xx) || defined(STM32H7A3xx) || defined(STM32H7A3xxQ) || defined(STM32H725xx)
+#    if defined(STM32H743xx) || defined(STM32H750xx) || defined(STM32H723xx) || defined(STM32H7A3xx) || defined(STM32H7A3xxQ) || defined(STM32H725xx)
     RCC_PeriphClkInit.PLL2.PLL2M = 5 * HSE_MULT;
-    RCC_PeriphClkInit.PLL2.PLL2N = 500; // 8Mhz (Oscillator Frequency) / 5 (PLL2M) = 1.6 * 500 (PLL2N) = 800Mhz.
+    RCC_PeriphClkInit.PLL2.PLL2N = 800000000 / PLL_SRC_FREQ * 5; // Oscillator Frequency / 5 (PLL2M) = 1.6 * this value (PLL2N) = 800Mhz.
     RCC_PeriphClkInit.PLL2.PLL2VCOSEL = RCC_PLL2VCOWIDE; // Wide VCO range:192 to 836 MHz
     RCC_PeriphClkInit.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_0; // PLL2 input between 1 and 2Mhz (1.6)
     RCC_PeriphClkInit.PLL2.PLL2FRACN = 0;
@@ -696,7 +688,7 @@ void SystemClock_Config(void)
     RCC_PeriphClkInit.PLL2.PLL2R = 4; // 800Mhz / 4 = 200Mhz // HAL LIBS REQUIRE 200MHZ SDMMC CLOCK, see HAL_SD_ConfigWideBusOperation, SDMMC_HSpeed_CLK_DIV, SDMMC_NSpeed_CLK_DIV
 #    elif defined(STM32H730xx)
     RCC_PeriphClkInit.PLL2.PLL2M = 8 * HSE_MULT;
-    RCC_PeriphClkInit.PLL2.PLL2N = 400; // 8Mhz (Oscillator Frequency) / 8 (PLL2M) = 1.0 * 400 (PLL2N) = 400Mhz.
+    RCC_PeriphClkInit.PLL2.PLL2N = 400000000 / PLL_SRC_FREQ * 8; // HSE frequency / 8 (PLL2M) * 400 (PLL2N) = 400Mhz.
     RCC_PeriphClkInit.PLL2.PLL2VCOSEL = RCC_PLL2VCOMEDIUM; // Medium VCO range:150 to 420 MHz
     RCC_PeriphClkInit.PLL2.PLL2RGE = RCC_PLL2VCIRANGE_0; // PLL2 input between 1 and 2Mhz (1.0)
     RCC_PeriphClkInit.PLL2.PLL2FRACN = 0;
@@ -786,6 +778,12 @@ void SystemInit (void)
     systemProcessResetReason();
 #endif
 
+#if defined(USE_FLASH_MEMORY_MAPPED)
+    memoryMappedModeInit();
+
+    // !IMPORTANT!  Do NOT reset peripherals, clocks and GPIO pins used by the MCU to access the memory-mapped flash!!!
+#endif
+
     // FPU settings
 #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  // Set CP10 and CP11 Full Access
@@ -860,7 +858,7 @@ void SystemInit (void)
     /* Change  the switch matrix read issuing capability to 1 for the AXI SRAM target (Target 7) */
   *((__IO uint32_t*)0x51008108) = 0x00000001;
 
-#if defined (DATA_IN_ExtSRAM) || defined (DATA_IN_ExtSDRAM)
+#if defined(DATA_IN_ExtSRAM) || defined(DATA_IN_ExtSDRAM)
     SystemInit_ExtMemCtl();
 #endif /* DATA_IN_ExtSRAM || DATA_IN_ExtSDRAM */
 
@@ -961,7 +959,7 @@ void SystemCoreClockUpdate (void)
     SystemCoreClock = HAL_RCC_GetSysClockFreq();
 }
 
-#if defined (DATA_IN_ExtSRAM) || defined (DATA_IN_ExtSDRAM)
+#if defined(DATA_IN_ExtSRAM) || defined(DATA_IN_ExtSDRAM)
 /**
   * @brief  Setup the external memory controller.
   *         Called in startup_stm32h7xx.s before jump to main.
@@ -972,7 +970,7 @@ void SystemCoreClockUpdate (void)
   */
 void SystemInit_ExtMemCtl(void)
 {
-#if defined (DATA_IN_ExtSDRAM)
+#if defined(DATA_IN_ExtSDRAM)
     register uint32_t tmpreg = 0, timeout = 0xFFFF;
     register __IO uint32_t index;
 

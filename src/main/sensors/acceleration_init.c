@@ -37,7 +37,7 @@
 #include "config/feature.h"
 
 #include "drivers/accgyro/accgyro.h"
-#include "drivers/accgyro/accgyro_fake.h"
+#include "drivers/accgyro/accgyro_virtual.h"
 #include "drivers/accgyro/accgyro_mpu.h"
 #include "drivers/accgyro/accgyro_mpu3050.h"
 #include "drivers/accgyro/accgyro_mpu6050.h"
@@ -51,6 +51,7 @@
 #include "drivers/accgyro/accgyro_spi_mpu6000.h"
 #include "drivers/accgyro/accgyro_spi_mpu6500.h"
 #include "drivers/accgyro/accgyro_spi_mpu9250.h"
+#include "drivers/accgyro/accgyro_spi_lsm6dsv16x.h"
 
 #ifdef USE_ACC_ADXL345
 #include "drivers/accgyro_legacy/accgyro_adxl345.h"
@@ -86,11 +87,13 @@
 
 #include "acceleration_init.h"
 
-#if !defined(USE_ACC_MPU6500) && !defined(USE_ACC_SPI_MPU6000) && !defined(USE_ACC_SPI_MPU6500) &&  \
+#if !defined(USE_ACC_MPU6000) && !defined(USE_ACC_SPI_MPU6000) && !defined(USE_ACC_MPU6050) && !defined(USE_ACC_MPU6500) && \
+    !defined(USE_ACC_SPI_MPU6500) && !defined(USE_ACC_SPI_MPU9250) && !defined(USE_ACC_SPI_ICM20602) && \
     !defined(USE_ACC_SPI_ICM20689) && !defined(USE_ACCGYRO_LSM6DSO) && !defined(USE_ACCGYRO_BMI160) && \
     !defined(USE_ACCGYRO_BMI270) && !defined(USE_ACC_SPI_ICM42605) && !defined(USE_ACC_SPI_ICM42688P) && \
     !defined(USE_ACC_ADXL345) && !defined(USE_ACC_BMA280) && !defined(USE_ACC_LSM303DLHC) && \
-    !defined(USE_ACC_MMA8452) && !defined(USE_FAKE_ACC)
+    !defined(USE_ACC_MMA8452) && !defined(USE_ACC_LSM303DLHC) && !defined(USE_ACCGYRO_LSM6DSV16X) && \
+	!defined(USE_VIRTUAL_ACC)
 #error At least one USE_ACC device definition required
 #endif
 
@@ -113,7 +116,11 @@ static void setConfigCalibrationCompleted(void)
 
 bool accHasBeenCalibrated(void)
 {
+#ifdef SIMULATOR_BUILD
+    return true;
+#else
     return accelerometerConfig()->accZero.values.calibrationCompleted;
+#endif
 }
 
 void accResetRollAndPitchTrims(void)
@@ -323,10 +330,19 @@ retry:
         FALLTHROUGH;
 #endif
 
-#ifdef USE_FAKE_ACC
-    case ACC_FAKE:
-        if (fakeAccDetect(dev)) {
-            accHardware = ACC_FAKE;
+#ifdef USE_ACCGYRO_LSM6DSV16X
+    case ACC_LSM6DSV16X:
+        if (lsm6dsv16xSpiAccDetect(dev)) {
+            accHardware = ACC_LSM6DSV16X;
+            break;
+        }
+        FALLTHROUGH;
+#endif
+
+#ifdef USE_VIRTUAL_ACC
+    case ACC_VIRTUAL:
+        if (virtualAccDetect(dev)) {
+            accHardware = ACC_VIRTUAL;
             break;
         }
         FALLTHROUGH;

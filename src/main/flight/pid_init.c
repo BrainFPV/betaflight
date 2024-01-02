@@ -35,10 +35,12 @@
 
 #include "fc/rc_controls.h"
 #include "fc/runtime_config.h"
+#include "fc/rc.h"
 
-#include "flight/feedforward.h"
 #include "flight/pid.h"
 #include "flight/rpm_filter.h"
+
+#include "rx/rx.h"
 
 #include "sensors/gyro.h"
 #include "sensors/sensors.h"
@@ -52,7 +54,7 @@
 #define D_MIN_SETPOINT_GAIN_FACTOR 0.00008f
 #endif
 
-#define ATTITUDE_CUTOFF_HZ 250
+#define ATTITUDE_CUTOFF_HZ 50
 
 static void pidSetTargetLooptime(uint32_t pidLooptime)
 {
@@ -237,9 +239,21 @@ void pidInitFilters(const pidProfile_t *pidProfile)
 
 #ifdef USE_ACC
     const float k = pt3FilterGain(ATTITUDE_CUTOFF_HZ, pidRuntime.dT);
+    const float angleCutoffHz = 1000.0f / (2.0f * M_PIf * pidProfile->angle_feedforward_smoothing_ms); // default of 80ms -> 2.0Hz, 160ms -> 1.0Hz, approximately
+    const float k2 = pt3FilterGain(angleCutoffHz, pidRuntime.dT);
+    pidRuntime.horizonDelayMs = pidProfile->horizon_delay_ms;
+    if (pidRuntime.horizonDelayMs) {
+        const float horizonSmoothingHz = 1e3f / (2.0f * M_PIf * pidProfile->horizon_delay_ms); // default of 500ms means 0.318Hz
+        const float kHorizon = pt1FilterGain(horizonSmoothingHz, pidRuntime.dT);
+        pt1FilterInit(&pidRuntime.horizonSmoothingPt1, kHorizon);
+    }
+
     for (int axis = 0; axis < 2; axis++) {  // ROLL and PITCH only
         pt3FilterInit(&pidRuntime.attitudeFilter[axis], k);
+        pt3FilterInit(&pidRuntime.angleFeedforwardPt3[axis], k2);
+        pidRuntime.maxRcRateInv[axis] = 1.0f / getMaxRcRate(axis);
     }
+    pidRuntime.angleYawSetpoint = 0.0f;
 #endif
 
     pt2FilterInit(&pidRuntime.antiGravityLpf, pt2FilterGain(pidProfile->anti_gravity_cutoff_hz, pidRuntime.dT));
@@ -255,35 +269,13 @@ void pidInit(const pidProfile_t *pidProfile)
 #endif
 }
 
-#ifdef USE_RC_SMOOTHING_FILTER
-void pidInitFeedforwardLpf(uint16_t filterCutoff, uint8_t debugAxis)
-{
-    pidRuntime.rcSmoothingDebugAxis = debugAxis;
-    if (filterCutoff > 0) {
-        pidRuntime.feedforwardLpfInitialized = true;
-        for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-            pt3FilterInit(&pidRuntime.feedforwardPt3[axis], pt3FilterGain(filterCutoff, pidRuntime.dT));
-        }
-    }
-}
-
-void pidUpdateFeedforwardLpf(uint16_t filterCutoff)
-{
-    if (filterCutoff > 0) {
-        for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
-            pt3FilterUpdateCutoff(&pidRuntime.feedforwardPt3[axis], pt3FilterGain(filterCutoff, pidRuntime.dT));
-        }
-    }
-}
-#endif // USE_RC_SMOOTHING_FILTER
-
 void pidInitConfig(const pidProfile_t *pidProfile)
 {
     for (int axis = FD_ROLL; axis <= FD_YAW; axis++) {
         pidRuntime.pidCoefficient[axis].Kp = PTERM_SCALE * pidProfile->pid[axis].P;
         pidRuntime.pidCoefficient[axis].Ki = ITERM_SCALE * pidProfile->pid[axis].I;
         pidRuntime.pidCoefficient[axis].Kd = DTERM_SCALE * pidProfile->pid[axis].D;
-        pidRuntime.pidCoefficient[axis].Kf = FEEDFORWARD_SCALE * (pidProfile->pid[axis].F / 100.0f);
+        pidRuntime.pidCoefficient[axis].Kf = FEEDFORWARD_SCALE * (pidProfile->pid[axis].F * 0.01f);
     }
 #ifdef USE_INTEGRATED_YAW_CONTROL
     if (!pidProfile->use_integrated_yaw)
@@ -291,12 +283,19 @@ void pidInitConfig(const pidProfile_t *pidProfile)
     {
         pidRuntime.pidCoefficient[FD_YAW].Ki *= 2.5f;
     }
-    pidRuntime.levelGain = pidProfile->pid[PID_LEVEL].P / 10.0f;
-    pidRuntime.horizonGain = pidProfile->pid[PID_LEVEL].I / 10.0f;
-    pidRuntime.horizonTransition = (float)pidProfile->pid[PID_LEVEL].D;
-    pidRuntime.horizonTiltExpertMode = pidProfile->horizon_tilt_expert_mode;
-    pidRuntime.horizonCutoffDegrees = (175 - pidProfile->horizon_tilt_effect) * 1.8f;
-    pidRuntime.horizonFactorRatio = (100 - pidProfile->horizon_tilt_effect) * 0.01f;
+    pidRuntime.angleGain = pidProfile->pid[PID_LEVEL].P / 10.0f;
+    pidRuntime.angleFeedforwardGain = pidProfile->pid[PID_LEVEL].F / 100.0f;
+    pidRuntime.angleEarthRef = pidProfile->angle_earth_ref / 100.0f;
+
+    pidRuntime.horizonGain = MIN(pidProfile->pid[PID_LEVEL].I / 100.0f, 1.0f);
+    pidRuntime.horizonIgnoreSticks = (pidProfile->horizon_ignore_sticks) ? 1.0f : 0.0f;
+
+    pidRuntime.horizonLimitSticks = pidProfile->pid[PID_LEVEL].D / 100.0f;
+    pidRuntime.horizonLimitSticksInv = (pidProfile->pid[PID_LEVEL].D) ? 1.0f / pidRuntime.horizonLimitSticks : 1.0f;
+    pidRuntime.horizonLimitDegrees = (float)pidProfile->horizon_limit_degrees;
+    pidRuntime.horizonLimitDegreesInv = (pidProfile->horizon_limit_degrees) ? 1.0f / pidRuntime.horizonLimitDegrees : 1.0f;
+    pidRuntime.horizonDelayMs = pidProfile->horizon_delay_ms;
+
     pidRuntime.maxVelocity[FD_ROLL] = pidRuntime.maxVelocity[FD_PITCH] = pidProfile->rateAccelLimit * 100 * pidRuntime.dT;
     pidRuntime.maxVelocity[FD_YAW] = pidProfile->yawRateAccelLimit * 100 * pidRuntime.dT;
     pidRuntime.itermWindupPointInv = 1.0f;
@@ -404,8 +403,8 @@ void pidInitConfig(const pidProfile_t *pidProfile)
             pidRuntime.dMinPercent[axis] = 0;
         }
     }
-    pidRuntime.dMinGyroGain = pidProfile->d_min_gain * D_MIN_GAIN_FACTOR / D_MIN_LOWPASS_HZ;
-    pidRuntime.dMinSetpointGain = pidProfile->d_min_gain * D_MIN_SETPOINT_GAIN_FACTOR * pidProfile->d_min_advance * pidRuntime.pidFrequency / (100 * D_MIN_LOWPASS_HZ);
+    pidRuntime.dMinGyroGain = D_MIN_GAIN_FACTOR * pidProfile->d_min_gain / D_MIN_LOWPASS_HZ;
+    pidRuntime.dMinSetpointGain = D_MIN_SETPOINT_GAIN_FACTOR * pidProfile->d_min_gain * pidProfile->d_min_advance / 100.0f / D_MIN_LOWPASS_HZ;
     // lowpass included inversely in gain since stronger lowpass decreases peak effect
 #endif
 
@@ -414,22 +413,26 @@ void pidInitConfig(const pidProfile_t *pidProfile)
 #endif
 
 #ifdef USE_FEEDFORWARD
-    if (pidProfile->feedforward_transition == 0) {
-        pidRuntime.feedforwardTransitionFactor = 0;
-    } else {
-        pidRuntime.feedforwardTransitionFactor = 100.0f / pidProfile->feedforward_transition;
-    }
+    pidRuntime.feedforwardTransition = pidProfile->feedforward_transition / 100.0f;
+    pidRuntime.feedforwardTransitionInv = (pidProfile->feedforward_transition == 0) ? 0.0f : 100.0f / pidProfile->feedforward_transition;
     pidRuntime.feedforwardAveraging = pidProfile->feedforward_averaging;
-    pidRuntime.feedforwardSmoothFactor = 1.0f;
-    if (pidProfile->feedforward_smooth_factor) {
-        pidRuntime.feedforwardSmoothFactor = 1.0f - ((float)pidProfile->feedforward_smooth_factor) / 100.0f;
-    }
+    pidRuntime.feedforwardSmoothFactor = 1.0f - (0.01f * pidProfile->feedforward_smooth_factor);
     pidRuntime.feedforwardJitterFactor = pidProfile->feedforward_jitter_factor;
-    pidRuntime.feedforwardBoostFactor = (float)pidProfile->feedforward_boost / 10.0f;
-    feedforwardInit(pidProfile);
+    pidRuntime.feedforwardJitterFactorInv = 1.0f / (2.0f * pidProfile->feedforward_jitter_factor);
+    // the extra division by 2 is to average the sum of the two previous rcCommandAbs values
+    pidRuntime.feedforwardBoostFactor = 0.1f * pidProfile->feedforward_boost;
+    pidRuntime.feedforwardMaxRateLimit = pidProfile->feedforward_max_rate_limit;
 #endif
 
     pidRuntime.levelRaceMode = pidProfile->level_race_mode;
+    pidRuntime.tpaBreakpoint = constrainf((pidProfile->tpa_breakpoint - PWM_RANGE_MIN) / 1000.0f, 0.0f, 0.99f);
+    // default of 1350 returns 0.35. range limited to 0 to 0.99
+    pidRuntime.tpaMultiplier = (pidProfile->tpa_rate / 100.0f) / (1.0f - pidRuntime.tpaBreakpoint);
+    // it is assumed that tpaLowBreakpoint is always less than or equal to tpaBreakpoint
+    pidRuntime.tpaLowBreakpoint = constrainf((pidProfile->tpa_low_breakpoint - PWM_RANGE_MIN) / 1000.0f, 0.01f, 1.0f);
+    pidRuntime.tpaLowBreakpoint = MIN(pidRuntime.tpaLowBreakpoint, pidRuntime.tpaBreakpoint);
+    pidRuntime.tpaLowMultiplier = pidProfile->tpa_low_rate / (100.0f * pidRuntime.tpaLowBreakpoint);
+    pidRuntime.tpaLowAlways = pidProfile->tpa_low_always;
 }
 
 void pidCopyProfile(uint8_t dstPidProfileIndex, uint8_t srcPidProfileIndex)
@@ -439,4 +442,3 @@ void pidCopyProfile(uint8_t dstPidProfileIndex, uint8_t srcPidProfileIndex)
         memcpy(pidProfilesMutable(dstPidProfileIndex), pidProfilesMutable(srcPidProfileIndex), sizeof(pidProfile_t));
     }
 }
-

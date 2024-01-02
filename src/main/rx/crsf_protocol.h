@@ -60,7 +60,12 @@ typedef enum {
 } crsfFrameType_e;
 
 enum {
+    CRSF_COMMAND_SUBCMD_RX = 0x10,    // receiver command
     CRSF_COMMAND_SUBCMD_GENERAL = 0x0A,    // general command
+};
+
+enum {
+    CRSF_COMMAND_SUBCMD_RX_BIND = 0x01,    // bind command
 };
 
 enum {
@@ -89,6 +94,7 @@ enum {
     CRSF_FRAME_LINK_STATISTICS_TX_PAYLOAD_SIZE = 6,
     CRSF_FRAME_RC_CHANNELS_PAYLOAD_SIZE = 22, // 11 bits per channel * 16 channels = 22 bytes.
     CRSF_FRAME_ATTITUDE_PAYLOAD_SIZE = 6,
+    CRSF_FRAME_DEVICE_PING_PAYLOAD_SIZE = 2,
 };
 
 enum {

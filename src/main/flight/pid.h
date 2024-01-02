@@ -146,10 +146,10 @@ typedef struct pidProfile_s {
     uint16_t pidSumLimit;
     uint16_t pidSumLimitYaw;
     uint8_t pidAtMinThrottle;               // Disable/Enable pids on zero throttle. Normally even without airmode P and D would be active.
-    uint8_t levelAngleLimit;                // Max angle in degrees in level mode
+    uint8_t angle_limit;                    // Max angle in degrees in Angle mode
 
-    uint8_t horizon_tilt_effect;            // inclination factor for Horizon mode
-    uint8_t horizon_tilt_expert_mode;       // OFF or ON
+    uint8_t horizon_limit_degrees;          // in Horizon mode, zero levelling when the quad's attitude exceeds this angle
+    uint8_t horizon_ignore_sticks;          // 0 = default, meaning both stick and attitude attenuation; 1 = only attitude attenuation
 
     // Betaflight PID controller parameters
     uint8_t anti_gravity_gain;              // AntiGravity Gain (was itermAcceleratorGain)
@@ -204,6 +204,7 @@ typedef struct pidProfile_s {
     uint8_t dyn_idle_i_gain;                // I gain during active control of rpm
     uint8_t dyn_idle_d_gain;                // D gain for corrections around rapid changes in rpm
     uint8_t dyn_idle_max_increase;          // limit on maximum possible increase in motor idle drive during active control
+    uint8_t dyn_idle_start_increase;        // limit on maximum possible increase in motor idle drive with airmode not activated
 
     uint8_t feedforward_transition;         // Feedforward attenuation around centre sticks
     uint8_t feedforward_averaging;          // Number of packets to average when averaging is on
@@ -233,6 +234,16 @@ typedef struct pidProfile_s {
     uint8_t tpa_mode;                       // Controls which PID terms TPA effects
     uint8_t tpa_rate;                       // Percent reduction in P or D at full throttle
     uint16_t tpa_breakpoint;                // Breakpoint where TPA is activated
+
+    uint8_t angle_feedforward_smoothing_ms; // Smoothing factor for angle feedforward as time constant in milliseconds
+    uint8_t angle_earth_ref;                // Control amount of "co-ordination" from yaw into roll while pitched forward in angle mode
+    uint16_t horizon_delay_ms;              // delay when Horizon Strength increases, 50 = 500ms time constant
+    uint8_t tpa_low_rate;                   // Percent reduction in P or D at zero throttle
+    uint16_t tpa_low_breakpoint;            // Breakpoint where lower TPA is deactivated
+    uint8_t tpa_low_always;                 // off, on - if OFF then low TPA is only active until tpa_low_breakpoint is reached the first time
+
+    uint8_t ez_landing_threshold;           // Threshold stick position below which motor output is limited
+    uint8_t ez_landing_limit;               // Maximum motor output when all sticks centred and throttle zero
 } pidProfile_t;
 
 PG_DECLARE_ARRAY(pidProfile_t, PID_PROFILE_COUNT, pidProfiles);
@@ -293,12 +304,14 @@ typedef struct pidRuntime_s {
     uint8_t antiGravityGain;
     float antiGravityPGain;
     pidCoefficient_t pidCoefficient[XYZ_AXIS_COUNT];
-    float levelGain;
+    float angleGain;
+    float angleFeedforwardGain;
     float horizonGain;
-    float horizonTransition;
-    float horizonCutoffDegrees;
-    float horizonFactorRatio;
-    uint8_t horizonTiltExpertMode;
+    float horizonLimitSticks;
+    float horizonLimitSticksInv;
+    float horizonLimitDegrees;
+    float horizonLimitDegreesInv;
+    float horizonIgnoreSticks;
     float maxVelocity[XYZ_AXIS_COUNT];
     float itermWindupPointInv;
     bool inCrashRecoveryMode;
@@ -316,6 +329,11 @@ typedef struct pidRuntime_s {
     bool zeroThrottleItermReset;
     bool levelRaceMode;
     float tpaFactor;
+    float tpaBreakpoint;
+    float tpaMultiplier;
+    float tpaLowBreakpoint;
+    float tpaLowMultiplier;
+    bool tpaLowAlways;
 
 #ifdef USE_ITERM_RELAX
     pt1Filter_t windupLpf[XYZ_AXIS_COUNT];
@@ -345,13 +363,6 @@ typedef struct pidRuntime_s {
     pt1Filter_t airmodeThrottleLpf1;
     pt1Filter_t airmodeThrottleLpf2;
 #endif
-
-#ifdef USE_RC_SMOOTHING_FILTER
-    pt3Filter_t feedforwardPt3[XYZ_AXIS_COUNT];
-    bool feedforwardLpfInitialized;
-    uint8_t rcSmoothingDebugAxis;
-    uint8_t rcSmoothingFilterType;
-#endif // USE_RC_SMOOTHING_FILTER
 
 #ifdef USE_ACRO_TRAINER
     float acroTrainerAngleLimit;
@@ -390,15 +401,26 @@ typedef struct pidRuntime_s {
 #endif
 
 #ifdef USE_FEEDFORWARD
-    float feedforwardTransitionFactor;
     feedforwardAveraging_t feedforwardAveraging;
     float feedforwardSmoothFactor;
-    float feedforwardJitterFactor;
+    uint8_t feedforwardJitterFactor;
+    float feedforwardJitterFactorInv;
     float feedforwardBoostFactor;
+    float feedforwardTransition;
+    float feedforwardTransitionInv;
+    uint8_t feedforwardMaxRateLimit;
+    pt3Filter_t angleFeedforwardPt3[XYZ_AXIS_COUNT];
 #endif
 
 #ifdef USE_ACC
     pt3Filter_t attitudeFilter[2];  // Only for ROLL and PITCH
+    pt1Filter_t horizonSmoothingPt1;
+    uint16_t horizonDelayMs;
+    float angleYawSetpoint;
+    float angleEarthRef;
+    float angleTarget[2];
+    bool axisInAngleMode[3];
+    float maxRcRateInv[2];
 #endif
 } pidRuntime_t;
 
@@ -445,16 +467,14 @@ void applyItermRelax(const int axis, const float iterm,
 void applyAbsoluteControl(const int axis, const float gyroRate, float *currentPidSetpoint, float *itermErrorRate);
 void rotateItermAndAxisError();
 float pidLevel(int axis, const pidProfile_t *pidProfile,
-    const rollAndPitchTrims_t *angleTrim, float currentPidSetpoint, float horizonLevelStrength);
+    const rollAndPitchTrims_t *angleTrim, float rawSetpoint, float horizonLevelStrength);
 float calcHorizonLevelStrength(void);
 #endif
+
 void dynLpfDTermUpdate(float throttle);
 void pidSetItermReset(bool enabled);
 float pidGetPreviousSetpoint(int axis);
 float pidGetDT();
 float pidGetPidFrequency();
-float pidGetFeedforwardBoostFactor();
-float pidGetFeedforwardSmoothFactor();
-float pidGetFeedforwardJitterFactor();
-float pidGetFeedforwardTransitionFactor();
+
 float dynLpfCutoffFreq(float throttle, uint16_t dynLpfMin, uint16_t dynLpfMax, uint8_t expo);

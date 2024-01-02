@@ -106,15 +106,15 @@ STATIC_UNIT_TESTED gyroDev_t * const gyroDevPtr = &gyro.gyroSensor1.gyroDev;
 #endif
 
 
-#define DEBUG_GYRO_CALIBRATION 3
+#define DEBUG_GYRO_CALIBRATION_VALUE 3
 
 #define GYRO_OVERFLOW_TRIGGER_THRESHOLD 31980  // 97.5% full scale (1950dps for 2000dps gyro)
 #define GYRO_OVERFLOW_RESET_THRESHOLD 30340    // 92.5% full scale (1850dps for 2000dps gyro)
 
 PG_REGISTER_WITH_RESET_FN(gyroConfig_t, gyroConfig, PG_GYRO_CONFIG, 9);
 
-#ifndef GYRO_CONFIG_USE_GYRO_DEFAULT
-#define GYRO_CONFIG_USE_GYRO_DEFAULT GYRO_CONFIG_USE_GYRO_1
+#ifndef DEFAULT_GYRO_TO_USE
+#define DEFAULT_GYRO_TO_USE GYRO_CONFIG_USE_GYRO_1
 #endif
 
 void pgResetFn_gyroConfig(gyroConfig_t *gyroConfig)
@@ -123,7 +123,7 @@ void pgResetFn_gyroConfig(gyroConfig_t *gyroConfig)
     gyroConfig->gyroMovementCalibrationThreshold = 48;
     gyroConfig->gyro_hardware_lpf = GYRO_HARDWARE_LPF_NORMAL;
     gyroConfig->gyro_lpf1_type = FILTER_PT1;
-    gyroConfig->gyro_lpf1_static_hz = GYRO_LPF1_DYN_MIN_HZ_DEFAULT;  
+    gyroConfig->gyro_lpf1_static_hz = GYRO_LPF1_DYN_MIN_HZ_DEFAULT;
         // NOTE: dynamic lpf is enabled by default so this setting is actually
         // overridden and the static lowpass 1 is disabled. We can't set this
         // value to 0 otherwise Configurator versions 10.4 and earlier will also
@@ -131,7 +131,7 @@ void pgResetFn_gyroConfig(gyroConfig_t *gyroConfig)
     gyroConfig->gyro_lpf2_type = FILTER_PT1;
     gyroConfig->gyro_lpf2_static_hz = GYRO_LPF2_HZ_DEFAULT;
     gyroConfig->gyro_high_fsr = false;
-    gyroConfig->gyro_to_use = GYRO_CONFIG_USE_GYRO_DEFAULT;
+    gyroConfig->gyro_to_use = DEFAULT_GYRO_TO_USE;
     gyroConfig->gyro_soft_notch_hz_1 = 0;
     gyroConfig->gyro_soft_notch_cutoff_1 = 0;
     gyroConfig->gyro_soft_notch_hz_2 = 0;
@@ -188,8 +188,8 @@ static bool isOnFirstGyroCalibrationCycle(const gyroCalibration_t *gyroCalibrati
 
 static void gyroSetCalibrationCycles(gyroSensor_t *gyroSensor)
 {
-#if defined(USE_FAKE_GYRO) && !defined(UNIT_TEST)
-    if (gyroSensor->gyroDev.gyroHardware == GYRO_FAKE) {
+#if defined(USE_VIRTUAL_GYRO) && !defined(UNIT_TEST)
+    if (gyroSensor->gyroDev.gyroHardware == GYRO_VIRTUAL) {
         gyroSensor->calibration.cyclesRemaining = 0;
         return;
     }
@@ -220,6 +220,8 @@ bool isFirstArmingGyroCalibrationRunning(void)
 
 STATIC_UNIT_TESTED NOINLINE void performGyroCalibration(gyroSensor_t *gyroSensor, uint8_t gyroMovementCalibrationThreshold)
 {
+    bool calFailed = false;
+
     for (int axis = 0; axis < XYZ_AXIS_COUNT; axis++) {
         // Reset g[axis] at start of calibration
         if (isOnFirstGyroCalibrationCycle(&gyroSensor->calibration)) {
@@ -235,24 +237,30 @@ STATIC_UNIT_TESTED NOINLINE void performGyroCalibration(gyroSensor_t *gyroSensor
 
         if (isOnFinalGyroCalibrationCycle(&gyroSensor->calibration)) {
             const float stddev = devStandardDeviation(&gyroSensor->calibration.var[axis]);
-            // DEBUG_GYRO_CALIBRATION records the standard deviation of roll
+            // DEBUG_GYRO_CALIBRATION_VALUE records the standard deviation of roll
             // into the spare field - debug[3], in DEBUG_GYRO_RAW
             if (axis == X) {
-                DEBUG_SET(DEBUG_GYRO_RAW, DEBUG_GYRO_CALIBRATION, lrintf(stddev));
+                DEBUG_SET(DEBUG_GYRO_RAW, DEBUG_GYRO_CALIBRATION_VALUE, lrintf(stddev));
             }
+
+            DEBUG_SET(DEBUG_GYRO_CALIBRATION, axis, stddev);
 
             // check deviation and startover in case the model was moved
             if (gyroMovementCalibrationThreshold && stddev > gyroMovementCalibrationThreshold) {
-                gyroSetCalibrationCycles(gyroSensor);
-                return;
-            }
-
-            // please take care with exotic boardalignment !!
-            gyroSensor->gyroDev.gyroZero[axis] = gyroSensor->calibration.sum[axis] / gyroCalculateCalibratingCycles();
-            if (axis == Z) {
-              gyroSensor->gyroDev.gyroZero[axis] -= ((float)gyroConfig()->gyro_offset_yaw / 100);
+                calFailed = true;
+            } else {
+                // please take care with exotic boardalignment !!
+                gyroSensor->gyroDev.gyroZero[axis] = gyroSensor->calibration.sum[axis] / gyroCalculateCalibratingCycles();
+                if (axis == Z) {
+                  gyroSensor->gyroDev.gyroZero[axis] -= ((float)gyroConfig()->gyro_offset_yaw / 100);
+                }
             }
         }
+    }
+
+    if (calFailed) {
+        gyroSetCalibrationCycles(gyroSensor);
+        return;
     }
 
     if (isOnFinalGyroCalibrationCycle(&gyroSensor->calibration)) {
@@ -263,6 +271,7 @@ STATIC_UNIT_TESTED NOINLINE void performGyroCalibration(gyroSensor_t *gyroSensor
     }
 
     --gyroSensor->calibration.cyclesRemaining;
+    DEBUG_SET(DEBUG_GYRO_CALIBRATION, 3, gyroSensor->calibration.cyclesRemaining);
 }
 
 #if defined(USE_GYRO_SLEW_LIMITER)

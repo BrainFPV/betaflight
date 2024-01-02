@@ -28,6 +28,12 @@
 #define USE_I2C_DEVICE_2
 #define USE_I2C_DEVICE_3
 
+#define USE_VCP
+
+#define USE_SOFTSERIAL
+
+#define UNIFIED_SERIAL_PORT_COUNT       3
+
 #define USE_UART1
 #define USE_UART2
 #define USE_UART3
@@ -60,13 +66,7 @@
 
 #define USE_SPI
 #define SPI_FULL_RECONFIGURABILITY
-
-#define USE_VCP
-
-#define USE_SOFTSERIAL1
-#define USE_SOFTSERIAL2
-
-#define UNIFIED_SERIAL_PORT_COUNT       3
+#define USE_SPI_DMA_ENABLE_EARLY
 
 #define USE_USB_DETECT
 
@@ -74,4 +74,6 @@
 
 #define USE_ADC
 
-#define USE_CUSTOM_DEFAULTS
+#define USE_EXTI
+
+#define FLASH_PAGE_SIZE ((uint32_t)0x4000) // 16K sectors

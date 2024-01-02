@@ -35,7 +35,7 @@
 #include "config/config.h"
 
 #include "drivers/accgyro/accgyro.h"
-#include "drivers/accgyro/accgyro_fake.h"
+#include "drivers/accgyro/accgyro_virtual.h"
 #include "drivers/accgyro/accgyro_mpu.h"
 #include "drivers/accgyro/accgyro_mpu3050.h"
 #include "drivers/accgyro/accgyro_mpu6050.h"
@@ -44,12 +44,12 @@
 #include "drivers/accgyro/accgyro_spi_bmi270.h"
 #include "drivers/accgyro/accgyro_spi_icm20649.h"
 #include "drivers/accgyro/accgyro_spi_icm20689.h"
-#include "drivers/accgyro/accgyro_spi_icm20689.h"
 #include "drivers/accgyro/accgyro_spi_icm426xx.h"
 #include "drivers/accgyro/accgyro_spi_lsm6dso.h"
 #include "drivers/accgyro/accgyro_spi_mpu6000.h"
 #include "drivers/accgyro/accgyro_spi_mpu6500.h"
 #include "drivers/accgyro/accgyro_spi_mpu9250.h"
+#include "drivers/accgyro/accgyro_spi_lsm6dsv16x.h"
 
 #ifdef USE_GYRO_L3GD20
 #include "drivers/accgyro/accgyro_spi_l3gd20.h"
@@ -75,8 +75,8 @@
 #if !defined(USE_GYRO_L3G4200D) && !defined(USE_GYRO_MPU3050) && !defined(USE_GYRO_MPU6050) && \
     !defined(USE_GYRO_MPU6500) && !defined(USE_GYRO_SPI_ICM20689) && !defined(USE_GYRO_SPI_MPU6000) && \
     !defined(USE_GYRO_SPI_MPU6500) && !defined(USE_GYRO_SPI_MPU9250) && !defined(USE_GYRO_L3GD20) && \
-    !defined(USE_GYRO_SPI_ICM42605) && !defined(USE_GYRO_SPI_ICM42688P) && !defined(USE_ACCGYRO_BMI160) && \
-    !defined(USE_ACCGYRO_BMI270) && !defined(USE_FAKE_GYRO)
+    !defined(USE_GYRO_SPI_ICM42605) && !defined(USE_GYRO_SPI_ICM42688P) && !defined(USE_ACCGYRO_BMI160) && !defined(USE_ACCGYRO_BMI270) && \
+    !defined(USE_ACCGYRO_LSM6DSV16X) && !defined(USE_ACCGYRO_LSM6DSO) && !defined(USE_VIRTUAL_GYRO)
 #error At least one USE_GYRO device definition required
 #endif
 
@@ -317,7 +317,7 @@ void gyroInitSensor(gyroSensor_t *gyroSensor, const gyroDeviceConfig_t *config)
     switch (gyroSensor->gyroDev.gyroHardware) {
     case GYRO_NONE:    // Won't ever actually get here, but included to account for all gyro types
     case GYRO_DEFAULT:
-    case GYRO_FAKE:
+    case GYRO_VIRTUAL:
     case GYRO_MPU6050:
     case GYRO_L3G4200D:
     case GYRO_MPU3050:
@@ -328,6 +328,9 @@ void gyroInitSensor(gyroSensor_t *gyroSensor, const gyroDeviceConfig_t *config)
     case GYRO_MPU6500:
     case GYRO_MPU9250:
     case GYRO_LSM6DSO:
+    case GYRO_LSM6DSV16X:
+    case GYRO_ICM42688P:
+    case GYRO_ICM42605:
         gyroSensor->gyroDev.gyroHasOverflowProtection = true;
         break;
 
@@ -505,10 +508,19 @@ STATIC_UNIT_TESTED gyroHardware_e gyroDetect(gyroDev_t *dev)
         FALLTHROUGH;
 #endif
 
-#ifdef USE_FAKE_GYRO
-    case GYRO_FAKE:
-        if (fakeGyroDetect(dev)) {
-            gyroHardware = GYRO_FAKE;
+#ifdef USE_ACCGYRO_LSM6DSV16X
+    case GYRO_LSM6DSV16X:
+        if (lsm6dsv16xSpiGyroDetect(dev)) {
+            gyroHardware = GYRO_LSM6DSV16X;
+            break;
+        }
+        FALLTHROUGH;
+#endif
+
+#ifdef USE_VIRTUAL_GYRO
+    case GYRO_VIRTUAL:
+        if (virtualGyroDetect(dev)) {
+            gyroHardware = GYRO_VIRTUAL;
             break;
         }
         FALLTHROUGH;
@@ -530,11 +542,12 @@ static bool gyroDetectSensor(gyroSensor_t *gyroSensor, const gyroDeviceConfig_t 
 {
 #if defined(USE_GYRO_MPU6050) || defined(USE_GYRO_MPU3050) || defined(USE_GYRO_MPU6500) || defined(USE_GYRO_SPI_MPU6500) || defined(USE_GYRO_SPI_MPU6000) \
  || defined(USE_ACC_MPU6050) || defined(USE_GYRO_SPI_MPU9250) || defined(USE_GYRO_SPI_ICM20601) || defined(USE_GYRO_SPI_ICM20649) \
- || defined(USE_GYRO_SPI_ICM20689) || defined(USE_GYRO_L3GD20) || defined(USE_ACCGYRO_BMI160) || defined(USE_ACCGYRO_BMI270) || defined(USE_ACCGYRO_LSM6DSO) || defined(USE_GYRO_SPI_ICM42605) || defined(USE_GYRO_SPI_ICM42688P)
+ || defined(USE_GYRO_SPI_ICM20689) || defined(USE_GYRO_L3GD20) || defined(USE_ACCGYRO_BMI160) || defined(USE_ACCGYRO_BMI270) \
+ || defined(USE_ACCGYRO_LSM6DSO) || defined(USE_GYRO_SPI_ICM42605) || defined(USE_GYRO_SPI_ICM42688P) || defined(USE_ACCGYRO_LSM6DSV16X)
 
     bool gyroFound = mpuDetect(&gyroSensor->gyroDev, config);
 
-#if !defined(USE_FAKE_GYRO) // Allow resorting to fake accgyro if defined
+#if !defined(USE_VIRTUAL_GYRO) // Allow resorting to virtual accgyro if defined
     if (!gyroFound) {
         return false;
     }
@@ -660,7 +673,7 @@ bool gyroInit(void)
         gyro.gyroSensor2.gyroDev.dev.rxBuf = &gyroBuf2[GYRO_BUF_SIZE / 2];
 
         gyroInitSensor(&gyro.gyroSensor2, gyroDeviceConfig(1));
-        gyro.gyroHasOverflowProtection =  gyro.gyroHasOverflowProtection && gyro.gyroSensor2.gyroDev.gyroHasOverflowProtection;
+        gyro.gyroHasOverflowProtection = gyro.gyroHasOverflowProtection && gyro.gyroSensor2.gyroDev.gyroHasOverflowProtection;
         detectedSensors[SENSOR_INDEX_GYRO] = gyro.gyroSensor2.gyroDev.gyroHardware;
     }
 #endif
@@ -712,8 +725,8 @@ void gyroSetTargetLooptime(uint8_t pidDenom)
 {
     activePidLoopDenom = pidDenom;
     if (gyro.sampleRateHz) {
-        gyro.sampleLooptime = 1e6 / gyro.sampleRateHz;
-        gyro.targetLooptime = activePidLoopDenom * 1e6 / gyro.sampleRateHz;
+        gyro.sampleLooptime = 1e6f / gyro.sampleRateHz;
+        gyro.targetLooptime = activePidLoopDenom * 1e6f / gyro.sampleRateHz;
     } else {
         gyro.sampleLooptime = 0;
         gyro.targetLooptime = 0;

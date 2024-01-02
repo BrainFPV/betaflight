@@ -54,7 +54,7 @@ typedef enum {
 } rxFrameState_e;
 
 typedef enum {
-    SERIALRX_SPEKTRUM1024 = 0,
+    SERIALRX_NONE = 0,
     SERIALRX_SPEKTRUM2048 = 1,
     SERIALRX_SBUS = 2,
     SERIALRX_SUMD = 3,
@@ -68,7 +68,8 @@ typedef enum {
     SERIALRX_TARGET_CUSTOM = 11,
     SERIALRX_FPORT = 12,
     SERIALRX_SRXL2 = 13,
-    SERIALRX_GHST = 14
+    SERIALRX_GHST = 14,
+    SERIALRX_SPEKTRUM1024 = 15
 } SerialRXType;
 
 #define MAX_SUPPORTED_RC_PPM_CHANNEL_COUNT          12
@@ -136,6 +137,7 @@ typedef enum {
     RX_PROVIDER_SERIAL,
     RX_PROVIDER_MSP,
     RX_PROVIDER_SPI,
+    RX_PROVIDER_UDP,
 } rxProvider_t;
 
 typedef struct rxRuntimeState_s {
@@ -206,6 +208,8 @@ uint16_t rxGetLinkQualityPercent(void);
 int16_t getRssiDbm(void);
 void setRssiDbm(int16_t newRssiDbm, rssiSource_e source);
 void setRssiDbmDirect(int16_t newRssiDbm, rssiSource_e source);
+int8_t getActiveAntenna(void);
+void setActiveAntenna(int8_t antenna);
 #endif //USE_RX_RSSI_DBM
 
 #ifdef USE_RX_RSNR

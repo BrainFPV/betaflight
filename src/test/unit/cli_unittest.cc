@@ -26,9 +26,12 @@ extern "C" {
     #include "platform.h"
     #include "target.h"
     #include "build/version.h"
+    #include "io/gps.h"
     #include "cli/cli.h"
     #include "cli/settings.h"
     #include "common/printf.h"
+    #include "common/maths.h"
+    #include "common/gps_conversion.h"
     #include "config/feature.h"
     #include "drivers/buf_writer.h"
     #include "drivers/vtx_common.h"
@@ -46,8 +49,10 @@ extern "C" {
     #include "msp/msp_box.h"
     #include "osd/osd.h"
     #include "pg/pg.h"
+    #include "pg/gps_rescue.h"
     #include "pg/pg_ids.h"
     #include "pg/beeper.h"
+    #include "pg/gps.h"
     #include "pg/rx.h"
     #include "rx/rx.h"
     #include "scheduler/scheduler.h"
@@ -66,6 +71,8 @@ extern "C" {
     const uint16_t valueTableEntryCount = ARRAYLEN(valueTable);
     const lookupTableEntry_t lookupTables[] = {};
     const char * const lookupTableOsdDisplayPortDevice[] = {};
+    const char * const buildKey = NULL;
+    const char * const releaseName = NULL;
 
 
     PG_REGISTER(osdConfig_t, osdConfig, PG_OSD_CONFIG, 0);
@@ -87,6 +94,8 @@ extern "C" {
     PG_REGISTER_ARRAY(rxFailsafeChannelConfig_t, MAX_SUPPORTED_RC_CHANNEL_COUNT, rxFailsafeChannelConfigs, PG_RX_FAILSAFE_CHANNEL_CONFIG, 0);
     PG_REGISTER(pidConfig_t, pidConfig, PG_PID_CONFIG, 0);
     PG_REGISTER(gyroConfig_t, gyroConfig, PG_GYRO_CONFIG, 0);
+    PG_REGISTER(gpsConfig_t, gpsConfig, PG_GPS_CONFIG, 0);
+    PG_REGISTER(gpsRescueConfig_t, gpsRescueConfig, PG_GPS_RESCUE, 0);
 
     PG_REGISTER_WITH_RESET_FN(int8_t, unitTestData, PG_RESERVED_FOR_TESTING_1, 0);
 }
@@ -196,6 +205,7 @@ TEST(CLIUnittest, TestCliSetStringWriteOnce)
 // STUBS
 extern "C" {
 
+int16_t debug[8];
 float motor_disarmed[MAX_SUPPORTED_MOTORS];
 
 uint16_t batteryWarningVoltage;
@@ -272,10 +282,17 @@ void beeperOffSet(uint32_t) {}
 void beeperOffClear(uint32_t) {}
 void beeperOffClearAll(void) {}
 bool parseColor(int, const char *) {return false; }
-bool resetEEPROM(bool) { return true; }
+bool resetEEPROM(void) { return true; }
 void bufWriterFlush(bufWriter_t *) {}
 void mixerResetDisarmedMotors(void) {}
-void gpsEnablePassthrough(struct serialPort_s *) {}
+
+typedef enum {
+    DUMMY
+} pageId_e;
+
+void dashboardShowFixedPage(pageId_e){}
+void dashboardUpdate(timeUs_t) {}
+
 bool parseLedStripConfig(int, const char *){return false; }
 const char rcChannelLetters[] = "AERT12345678abcdefgh";
 
@@ -293,8 +310,7 @@ serialPortConfig_t *serialFindPortConfigurationMutable(serialPortIdentifier_e) {
 baudRate_e lookupBaudRateIndex(uint32_t){return BAUD_9600; }
 serialPortUsage_t *findSerialPortUsageByIdentifier(serialPortIdentifier_e){ return NULL; }
 serialPort_t *openSerialPort(serialPortIdentifier_e, serialPortFunction_e, serialReceiveCallbackPtr, void *, uint32_t, portMode_e, portOptions_e) { return NULL; }
-void serialSetBaudRate(serialPort_t *, uint32_t) {}
-void serialSetMode(serialPort_t *, portMode_e) {}
+const serialPortConfig_t *findSerialPortConfig(serialPortFunction_e) { return NULL; }
 void serialPassthrough(serialPort_t *, serialPort_t *, serialConsumer *, serialConsumer *) {}
 uint32_t millis(void) { return 0; }
 uint8_t getBatteryCellCount(void) { return 1; }
@@ -310,12 +326,11 @@ uint8_t __config_end = 0x10;
 uint16_t averageSystemLoadPercent = 0;
 
 timeDelta_t getTaskDeltaTimeUs(taskId_e){ return 0; }
-uint16_t currentRxRefreshRate = 9000;
-armingDisableFlags_e getArmingDisableFlags(void) { return ARMING_DISABLED_NO_GYRO; }
+uint16_t currentRxIntervalUs = 9000;
 
-const char *armingDisableFlagNames[]= {
+/*const char *armingDisableFlagNames[]= {
 "DUMMYDISABLEFLAGNAME"
-};
+};*/
 
 void getTaskInfo(taskId_e, taskInfo_t *) {}
 void getCheckFuncInfo(cfCheckFuncInfo_t *) {}
@@ -327,13 +342,13 @@ const char* const buildDate = "Jan 01 2017";
 const char * const buildTime = "00:00:00";
 const char * const shortGitRevision = "MASTER";
 
-uint32_t serialRxBytesWaiting(const serialPort_t *) {return 0;}
-uint8_t serialRead(serialPort_t *){return 0;}
+//uint32_t serialRxBytesWaiting(const serialPort_t *) {return 0;}
+//uint8_t serialRead(serialPort_t *){return 0;}
 
 void bufWriterAppend(bufWriter_t *, uint8_t ch){ printf("%c", ch); }
-void serialWriteBufShim(void *, const uint8_t *, int) {}
+//void serialWriteBufShim(void *, const uint8_t *, int) {}
 void bufWriterInit(bufWriter_t *, uint8_t *, int, bufWrite_t, void *) { }
-void setArmingDisabled(armingDisableFlags_e) {}
+//void setArmingDisabled(armingDisableFlags_e) {}
 
 void waitForSerialPortToFinishTransmitting(serialPort_t *) {}
 void systemResetToBootloader(void) {}
@@ -344,15 +359,16 @@ void writeUnmodifiedConfigToEEPROM(void) {}
 void changePidProfile(uint8_t) {}
 bool serialIsPortAvailable(serialPortIdentifier_e) { return false; }
 void generateLedConfig(ledConfig_t *, char *, size_t) {}
-bool isSerialTransmitBufferEmpty(const serialPort_t *) {return true; }
-void serialWrite(serialPort_t *, uint8_t ch) { printf("%c", ch);}
+//bool isSerialTransmitBufferEmpty(const serialPort_t *) {return true; }
+//void serialWrite(serialPort_t *, uint8_t ch) { printf("%c", ch);}
 
-void serialSetCtrlLineStateCb(serialPort_t *, void (*)(void *, uint16_t ), void *) {}
+//void serialSetCtrlLineStateCb(serialPort_t *, void (*)(void *, uint16_t ), void *) {}
 void serialSetCtrlLineStateDtrPin(serialPort_t *, ioTag_t ) {}
 void serialSetCtrlLineState(serialPort_t *, uint16_t ) {}
 
-void serialSetBaudRateCb(serialPort_t *, void (*)(serialPort_t *context, uint32_t baud), serialPort_t *) {}
-
+//void serialSetBaudRateCb(serialPort_t *, void (*)(serialPort_t *context, uint32_t baud), serialPort_t *) {}
+void rescheduleTask(taskId_e, timeDelta_t){}
+void schedulerSetNextStateTime(timeDelta_t ){}
 char *getBoardName(void) { return NULL; }
 char *getManufacturerId(void) { return NULL; }
 bool boardInformationIsSet(void) { return true; }
@@ -368,6 +384,6 @@ bool isModeActivationConditionConfigured(const modeActivationCondition_t *, cons
 void delay(uint32_t) {}
 displayPort_t *osdGetDisplayPort(osdDisplayPortDevice_e *) { return NULL; }
 mcuTypeId_e getMcuTypeId(void) { return MCU_TYPE_UNKNOWN; }
-uint16_t getCurrentRxRefreshRate(void) { return 0; }
+uint16_t getCurrentRxIntervalUs(void) { return 0; }
 uint16_t getAverageSystemLoadPercent(void) { return 0; }
 }

@@ -32,8 +32,7 @@
 #define MAX_NAME_LENGTH 16u
 
 typedef enum {
-    CONFIGURATION_STATE_DEFAULTS_BARE = 0,
-    CONFIGURATION_STATE_DEFAULTS_CUSTOM,
+    CONFIGURATION_STATE_UNCONFIGURED = 0,
     CONFIGURATION_STATE_CONFIGURED,
 } configurationState_e;
 
@@ -64,7 +63,7 @@ struct pidProfile_s;
 extern struct pidProfile_s *currentPidProfile;
 
 void initEEPROM(void);
-bool resetEEPROM(bool useCustomDefaults);
+bool resetEEPROM(void);
 bool readEEPROM(void);
 void writeEEPROM(void);
 void writeUnmodifiedConfigToEEPROM(void);
@@ -72,6 +71,9 @@ void ensureEEPROMStructureIsValid(void);
 
 void saveConfigAndNotify(void);
 void validateAndFixGyroConfig(void);
+#ifdef USE_BLACKBOX
+void validateAndFixBlackBox(void);
+#endif
 
 void setConfigDirty(void);
 bool isConfigDirty(void);

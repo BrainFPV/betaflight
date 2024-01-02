@@ -14,10 +14,11 @@
 USER_DIR = ../main
 TEST_DIR = unit
 ROOT = ../..
-OBJECT_DIR = ../../obj/test
+OBJECT_DIR = $(ROOT)/obj/test
 TARGET_DIR = $(USER_DIR)/target
+MAKE_SCRIPT_DIR := $(ROOT)/mk
 
-include $(ROOT)/make/system-id.mk
+include $(MAKE_SCRIPT_DIR)/system-id.mk
 
 VPATH := $(VPATH):$(USER_DIR):$(TEST_DIR)
 
@@ -108,8 +109,13 @@ cli_unittest_SRC := \
 		$(USER_DIR)/common/crc.c \
 		$(USER_DIR)/common/printf.c \
 		$(USER_DIR)/common/streambuf.c \
+		$(USER_DIR)/common/maths.c \
+		$(USER_DIR)/common/gps_conversion.c \
 		$(USER_DIR)/config/feature.c \
+		$(USER_DIR)/io/gps.c \
 		$(USER_DIR)/pg/pg.c \
+		$(USER_DIR)/fc/runtime_config.c \
+		$(USER_DIR)/drivers/serial.c \
 		$(USER_DIR)/common/typeconversion.c
 
 cli_unittest_DEFINES := \
@@ -185,7 +191,7 @@ motor_output_unittest_SRC := \
 		$(USER_DIR)/drivers/dshot.c
 
 motor_output_unittest_DEFINES := \
-		USE_DSHOT= 
+		USE_DSHOT=
 
 osd_unittest_SRC := \
 		$(USER_DIR)/osd/osd.c \
@@ -290,7 +296,7 @@ scheduler_unittest_SRC := \
 		$(USER_DIR)/common/streambuf.c
 
 scheduler_unittest_DEFINES := \
-		USE_OSD= 
+		USE_OSD=
 
 sensor_gyro_unittest_SRC := \
 		$(USER_DIR)/sensors/gyro.c \
@@ -301,7 +307,7 @@ sensor_gyro_unittest_SRC := \
 		$(USER_DIR)/common/maths.c \
 		$(USER_DIR)/common/streambuf.c \
 		$(USER_DIR)/common/sensor_alignment.c \
-		$(USER_DIR)/drivers/accgyro/accgyro_fake.c \
+		$(USER_DIR)/drivers/accgyro/accgyro_virtual.c \
 		$(USER_DIR)/drivers/accgyro/gyro_sync.c \
 		$(USER_DIR)/pg/pg.c \
 		$(USER_DIR)/pg/gyrodev.c
@@ -477,12 +483,13 @@ GTEST_DIR = ../../lib/test/gtest
 
 CC  := clang-12
 CXX := clang++-12
+ifneq ($(OSFAMILY), linux)
 ifeq ($(shell which $(CC) 2>/dev/null),)
-$(info Falling back to 'clang'.)
+$(info Falling back to 'clang' on Windows and OSX.)
 CC  := clang
 CXX := clang++
 endif
-
+endif
 #CC  := gcc
 #CXX := g++
 
@@ -558,7 +565,7 @@ C_FLAGS = $(COMMON_FLAGS) \
 
 # Flags passed to the C++ compiler.
 CXX_FLAGS = $(COMMON_FLAGS) \
-	-std=gnu++11
+	-std=gnu++14
 
 # Compiler flags for coverage instrumentation
 ifdef USE_COVERAGE
@@ -592,7 +599,7 @@ GTEST_HEADERS = $(GTEST_DIR)/inc/gtest/*.h
 ## V                 : Set verbosity level based on the V= parameter
 ##                     V=0 Low
 ##                     V=1 High
-include ../../make/build_verbosity.mk
+include $(MAKE_SCRIPT_DIR)/build_verbosity.mk
 
 # House-keeping build targets.
 

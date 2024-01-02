@@ -64,6 +64,12 @@
 #define SPI_FULL_RECONFIGURABILITY
 #endif
 
+#define USE_SPI_DMA_ENABLE_LATE
+
+#define USE_VCP
+
+#define UNIFIED_SERIAL_PORT_COUNT       1
+
 #define USE_UART1
 #define USE_UART2
 #define USE_UART3
@@ -74,7 +80,7 @@
 #define USE_UART8
 #define USE_UART9
 #define USE_UART10
-#define USE_LP_UART1
+#define USE_LPUART1
 
 #define SERIAL_PORT_COUNT       (UNIFIED_SERIAL_PORT_COUNT + 11)
 
@@ -92,10 +98,6 @@
 
 #define USE_BEEPER
 
-#define USE_VCP
-
-#define UNIFIED_SERIAL_PORT_COUNT       1
-
 #define USE_USB_ID
 #define USE_USB_DETECT
 
@@ -106,4 +108,17 @@
 // Provide a default so that this target builds on the build server.
 #if !defined(CONFIG_IN_RAM) && !defined(CONFIG_IN_SDCARD) && !defined(CONFIG_IN_EXTERNAL_FLASH)
 #define CONFIG_IN_RAM
+#endif
+
+#define USE_EXTI
+#define USE_TIMER_UP_CONFIG
+
+#if !(defined(CONFIG_IN_EXTERNAL_FLASH) || defined(CONFIG_IN_MEMORY_MAPPED_FLASH) || defined(CONFIG_IN_RAM) || defined(CONFIG_IN_SDCARD))
+#error "The configured MCU only has one flash page which contains the bootloader, no spare flash pages available, use external storage for persistent config or ram for target testing"
+#endif
+
+#define FLASH_PAGE_SIZE ((uint32_t)0x20000) // 128K sectors
+
+#if defined(USE_LED_STRIP) && !defined(USE_LED_STRIP_CACHE_MGMT)
+#define USE_LED_STRIP_CACHE_MGMT
 #endif

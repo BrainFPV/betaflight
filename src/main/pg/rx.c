@@ -34,11 +34,33 @@
 #include "rx/rx.h"
 #include "rx/rx_spi.h"
 
+#ifndef SERIALRX_PROVIDER
+
+#if defined(USE_SERIALRX_SBUS)
+#define SERIALRX_PROVIDER SERIALRX_SBUS
+#elif defined(USE_SERIALRX_GHST)
+#define SERIALRX_PROVIDER SERIALRX_GHST
+#elif defined(USE_SERIALRX_CRSF)
+#define SERIALRX_PROVIDER SERIALRX_CRSF
+#else
+#define SERIALRX_PROVIDER 0
+#endif
+
+#endif
+
+#ifndef SERIALRX_HALFDUPLEX
+#if (defined(USE_SERIALRX_FPORT) || defined(USE_SERIALRX_SRXL2)) && !(defined(USE_SERIALRX_CRSF) && defined(USE_SERIALRX_GHST) && defined(USE_SERIALRX_IBUS) && defined(USE_SERIALRX_SBUS) && defined(USE_SERIALRX_SPEKTRUM) && defined(USE_SERIALRX_XBUS))
+#define SERIALRX_HALFDUPLEX 1
+#else
+#define SERIALRX_HALFDUPLEX 0
+#endif
+#endif
+
 PG_REGISTER_WITH_RESET_FN(rxConfig_t, rxConfig, PG_RX_CONFIG, 4);
 void pgResetFn_rxConfig(rxConfig_t *rxConfig)
 {
     RESET_CONFIG_2(rxConfig_t, rxConfig,
-        .halfDuplex = 0,
+        .halfDuplex = SERIALRX_HALFDUPLEX,
         .serialrx_provider = SERIALRX_PROVIDER,
         .serialrx_inverted = 0,
         .spektrum_bind_pin_override_ioTag = IO_TAG(SPEKTRUM_BIND_PIN),

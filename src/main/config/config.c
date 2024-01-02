@@ -132,8 +132,8 @@ PG_RESET_TEMPLATE(systemConfig_t, systemConfig,
     .cpu_overclock = DEFAULT_CPU_OVERCLOCK,
     .powerOnArmingGraceTime = 5,
     .boardIdentifier = TARGET_BOARD_IDENTIFIER,
-    .hseMhz = SYSTEM_HSE_VALUE,  // Only used for F4 and G4 targets
-    .configurationState = CONFIGURATION_STATE_DEFAULTS_BARE,
+    .hseMhz = SYSTEM_HSE_MHZ,  // Only used for F4 and G4 targets
+    .configurationState = CONFIGURATION_STATE_UNCONFIGURED,
     .enableStickArming = false,
 );
 
@@ -419,6 +419,10 @@ static void validateAndFixConfig(void)
 #endif
 #endif // USE_ADC
 
+    // Bounds check gyro filter selection in case prior build had USE_GYRO_DLPF_EXPERIMENTAL defined
+    if (gyroConfig()->gyro_hardware_lpf >= GYRO_HARDWARE_LPF_COUNT) {
+        gyroConfigMutable()->gyro_hardware_lpf = GYRO_HARDWARE_LPF_NORMAL;
+    }
 
 // clear features that are not supported.
 // I have kept them all here in one place, some could be moved to sections of code above.
@@ -431,7 +435,7 @@ static void validateAndFixConfig(void)
     featureDisableImmediate(FEATURE_RX_SERIAL);
 #endif
 
-#if !defined(USE_SOFTSERIAL1) && !defined(USE_SOFTSERIAL2)
+#if !defined(USE_SOFTSERIAL)
     featureDisableImmediate(FEATURE_SOFTSERIAL);
 #endif
 
@@ -483,6 +487,39 @@ static void validateAndFixConfig(void)
     featureDisableImmediate(FEATURE_RSSI_ADC);
 #endif
 
+if (systemConfig()->configurationState == CONFIGURATION_STATE_UNCONFIGURED) {
+
+#ifdef USE_DASHBOARD
+    featureEnableImmediate(FEATURE_DASHBOARD);
+#endif
+#ifdef USE_GPS
+    featureEnableImmediate(FEATURE_GPS);
+#endif
+#ifdef USE_LED_STRIP
+    featureEnableImmediate(FEATURE_LED_STRIP);
+#endif
+#ifdef USE_OSD
+    featureEnableImmediate(FEATURE_OSD);
+#endif
+#ifdef USE_RANGEFINDER
+    featureEnableImmediate(FEATURE_RANGEFINDER);
+#endif
+#ifdef USE_SERVOS
+    featureEnableImmediate(FEATURE_CHANNEL_FORWARDING);
+    featureEnableImmediate(FEATURE_SERVO_TILT);
+#endif
+#if defined(SOFTSERIAL1_RX_PIN) || defined(SOFTSERIAL2_RX_PIN) || defined(SOFTSERIAL1_TX_PIN) || defined(SOFTSERIAL2_TX_PIN)
+    featureEnableImmediate(FEATURE_SOFTSERIAL);
+#endif
+#ifdef USE_TELEMETRY
+    featureEnableImmediate(FEATURE_TELEMETRY);
+#endif
+#ifdef USE_TRANSPONDER
+    featureEnableImmediate(FEATURE_TRANSPONDER);
+#endif
+
+}
+
 #if defined(USE_BEEPER)
 #ifdef USE_TIMER
     if (beeperDevConfig()->frequency && !timerGetConfiguredByTag(beeperDevConfig()->ioTag)) {
@@ -496,7 +533,7 @@ static void validateAndFixConfig(void)
 
 #ifdef USE_DSHOT
     if (beeperConfig()->dshotBeaconOffFlags & ~DSHOT_BEACON_ALLOWED_MODES) {
-        beeperConfigMutable()->dshotBeaconOffFlags = 0;
+        beeperConfigMutable()->dshotBeaconOffFlags = DEFAULT_DSHOT_BEACON_OFF_FLAGS;
     }
 
     if (beeperConfig()->dshotBeaconTone < DSHOT_CMD_BEACON1
@@ -570,7 +607,7 @@ static void validateAndFixConfig(void)
 
     for (int i = 0; i < MAX_MODE_ACTIVATION_CONDITION_COUNT; i++) {
         const modeActivationCondition_t *mac = modeActivationConditions(i);
-        if (mac->modeId == BOXMSPOVERRIDE && ((1 << (mac->auxChannelIndex) & (rxConfig()->msp_override_channels_mask)))) {
+        if (mac->modeId == BOXMSPOVERRIDE && ((1 << (mac->auxChannelIndex + NON_AUX_CHANNEL_COUNT) & (rxConfig()->msp_override_channels_mask)))) {
             rxConfigMutable()->msp_override_channels_mask &= ~(1 << (mac->auxChannelIndex + NON_AUX_CHANNEL_COUNT));
         }
     }
@@ -600,6 +637,10 @@ static void validateAndFixConfig(void)
         }
     }
 #endif
+
+#ifdef USE_BLACKBOX
+    validateAndFixBlackBox();
+#endif // USE_BLACKBOX
 
 #if defined(TARGET_VALIDATECONFIG)
     // This should be done at the end of the validation
@@ -638,15 +679,19 @@ void validateAndFixGyroConfig(void)
         // check for looptime restrictions based on motor protocol. Motor times have safety margin
         float motorUpdateRestriction;
 
-#if defined(STM32F411xE)
-        /* If bidirectional DSHOT is being used on an F411 then force DSHOT300. The motor update restrictions then applied
+#if defined(USE_DSHOT) && defined(USE_PID_DENOM_CHECK)
+        /* If bidirectional DSHOT is being used on an F4 or G4 then force DSHOT300. The motor update restrictions then applied
          * will automatically consider the loop time and adjust pid_process_denom appropriately
          */
-        if (motorConfig()->dev.useDshotTelemetry && (motorConfig()->dev.motorPwmProtocol == PWM_TYPE_DSHOT600)) {
-            motorConfigMutable()->dev.motorPwmProtocol = PWM_TYPE_DSHOT300;
+        if (motorConfig()->dev.useDshotTelemetry) {
+            if (motorConfig()->dev.motorPwmProtocol == PWM_TYPE_DSHOT600) {
+                motorConfigMutable()->dev.motorPwmProtocol = PWM_TYPE_DSHOT300;
+            }
+            if (gyro.sampleRateHz > 4000) {
+                pidConfigMutable()->pid_process_denom = 2;
+            }
         }
-#endif
-
+#endif // USE_DSHOT && USE_PID_DENOM_CHECK
         switch (motorConfig()->dev.motorPwmProtocol) {
         case PWM_TYPE_STANDARD:
                 motorUpdateRestriction = 1.0f / BRUSHLESS_MOTORS_PWM_RATE;
@@ -695,7 +740,19 @@ void validateAndFixGyroConfig(void)
         }
     }
 
+    if (systemConfig()->activeRateProfile >= CONTROL_RATE_PROFILE_COUNT) {
+        systemConfigMutable()->activeRateProfile = 0;
+    }
+    loadControlRateProfile();
+
+    if (systemConfig()->pidProfileIndex >= PID_PROFILE_COUNT) {
+        systemConfigMutable()->pidProfileIndex = 0;
+    }
+    loadPidProfile();
+}
+
 #ifdef USE_BLACKBOX
+void validateAndFixBlackBox(void) {
 #ifndef USE_FLASHFS
     if (blackboxConfig()->device == BLACKBOX_DEVICE_FLASH) {
         blackboxConfigMutable()->device = BLACKBOX_DEVICE_NONE;
@@ -710,18 +767,8 @@ void validateAndFixGyroConfig(void)
             blackboxConfigMutable()->device = BLACKBOX_DEVICE_NONE;
         }
     }
-#endif // USE_BLACKBOX
-
-    if (systemConfig()->activeRateProfile >= CONTROL_RATE_PROFILE_COUNT) {
-        systemConfigMutable()->activeRateProfile = 0;
-    }
-    loadControlRateProfile();
-
-    if (systemConfig()->pidProfileIndex >= PID_PROFILE_COUNT) {
-        systemConfigMutable()->pidProfileIndex = 0;
-    }
-    loadPidProfile();
 }
+#endif // USE_BLACKBOX
 
 bool readEEPROM(void)
 {
@@ -763,20 +810,9 @@ void writeEEPROM(void)
     writeUnmodifiedConfigToEEPROM();
 }
 
-bool resetEEPROM(bool useCustomDefaults)
+bool resetEEPROM(void)
 {
-#if !defined(USE_CUSTOM_DEFAULTS)
-    UNUSED(useCustomDefaults);
-#else
-    if (useCustomDefaults) {
-        if (!resetConfigToCustomDefaults()) {
-            return false;
-        }
-    } else
-#endif
-    {
-        resetConfig();
-    }
+    resetConfig();
 
     writeUnmodifiedConfigToEEPROM();
 
@@ -788,7 +824,7 @@ void ensureEEPROMStructureIsValid(void)
     if (isEEPROMStructureValid()) {
         return;
     }
-    resetEEPROM(false);
+    resetEEPROM();
 }
 
 void saveConfigAndNotify(void)

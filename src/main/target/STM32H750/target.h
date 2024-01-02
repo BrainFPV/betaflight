@@ -64,17 +64,13 @@
 #define SPI_FULL_RECONFIGURABILITY
 #endif
 
-// Provide a default so that this target builds on the build server.
-#if !defined(USE_SPI)
-#define USE_SPI
-#define USE_SPI_DEVICE_1
-#define USE_SPI_DEVICE_2
-#define USE_SPI_DEVICE_3
-#define USE_SPI_DEVICE_4
-#define USE_SPI_DEVICE_5
-#define USE_SPI_DEVICE_6
-#define SPI_FULL_RECONFIGURABILITY
-#endif
+#define USE_SPI_DMA_ENABLE_LATE
+
+#define USE_VCP
+
+#define USE_SOFTSERIAL
+
+#define UNIFIED_SERIAL_PORT_COUNT       3
 
 #define USE_UART1
 #define USE_UART2
@@ -84,9 +80,9 @@
 #define USE_UART6
 #define USE_UART7
 #define USE_UART8
-#define USE_LP_UART1
+#define USE_LPUART1
 
-#define SERIAL_PORT_COUNT       (UNIFIED_SERIAL_PORT_COUNT + 8)
+#define SERIAL_PORT_COUNT       (UNIFIED_SERIAL_PORT_COUNT + 9)
 
 #define TARGET_IO_PORTA 0xffff
 #define TARGET_IO_PORTB 0xffff
@@ -97,13 +93,6 @@
 
 #define USE_BEEPER
 
-#define USE_VCP
-
-#define USE_SOFTSERIAL1
-#define USE_SOFTSERIAL2
-
-#define UNIFIED_SERIAL_PORT_COUNT       3
-
 #define USE_USB_DETECT
 
 #define USE_ESCSERIAL
@@ -113,4 +102,17 @@
 // Provide a default so that this target builds on the build server.
 #if !defined(CONFIG_IN_RAM) && !defined(CONFIG_IN_SDCARD) && !defined(CONFIG_IN_EXTERNAL_FLASH)
 #define CONFIG_IN_RAM
+#endif
+
+#define USE_EXTI
+#define USE_TIMER_UP_CONFIG
+
+#if !(defined(CONFIG_IN_EXTERNAL_FLASH) || defined(CONFIG_IN_MEMORY_MAPPED_FLASH) || defined(CONFIG_IN_RAM) || defined(CONFIG_IN_SDCARD))
+#error "The configured MCU only has one flash page which contains the bootloader, no spare flash pages available, use external storage for persistent config or ram for target testing"
+#endif
+
+#define FLASH_PAGE_SIZE ((uint32_t)0x20000) // 128K sectors
+
+#if defined(USE_LED_STRIP) && !defined(USE_LED_STRIP_CACHE_MGMT)
+#define USE_LED_STRIP_CACHE_MGMT
 #endif

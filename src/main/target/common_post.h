@@ -33,30 +33,95 @@
 
     CLOUD_BUILD and CORE_BUILD should not be referenced here.
 
-    NOTE: for 4.5 we will be removing any conditions related to specific MCU types, instead 
+    NOTE: for 4.5 we will be removing any conditions related to specific MCU types, instead
     these should be defined in the target.h or in a file that is imported by target.h (in the
     case of common settings for a given MCU group)
-    
+
 */
+
+#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+#define DEFAULT_AUX_CHANNEL_COUNT       MAX_AUX_CHANNEL_COUNT
+#else
+#define DEFAULT_AUX_CHANNEL_COUNT       6
+#endif
+
+#ifdef USE_ITCM_RAM
+#if defined(ITCM_RAM_OPTIMISATION) && !defined(DEBUG)
+#define FAST_CODE                   __attribute__((section(".tcm_code"))) __attribute__((optimize(ITCM_RAM_OPTIMISATION)))
+#else
+#define FAST_CODE                   __attribute__((section(".tcm_code")))
+#endif
+// Handle case where we'd prefer code to be in ITCM, but it won't fit on the F745
+#ifdef STM32F745xx
+#define FAST_CODE_PREF
+#else
+#define FAST_CODE_PREF                  __attribute__((section(".tcm_code")))
+#endif
+#define FAST_CODE_NOINLINE          NOINLINE
+#else
+#define FAST_CODE
+#define FAST_CODE_PREF
+#define FAST_CODE_NOINLINE
+#endif // USE_ITCM_RAM
+
+#ifdef USE_CCM_CODE
+#define CCM_CODE                    __attribute__((section(".ccm_code")))
+#else
+#define CCM_CODE
+#endif
+
+#ifdef USE_FAST_DATA
+#define FAST_DATA_ZERO_INIT         __attribute__ ((section(".fastram_bss"), aligned(4)))
+#define FAST_DATA                   __attribute__ ((section(".fastram_data"), aligned(4)))
+#else
+#define FAST_DATA_ZERO_INIT
+#define FAST_DATA
+#endif // USE_FAST_DATA
 
 /*
     BEGIN HARDWARE INCLUSIONS
-    
+
     Simplified options for the moment, i.e. adding USE_MAG or USE_BARO and the entire driver suite is added.
     In the future we can move to specific drivers being added only - to save flash space.
 */
 
-#if defined(USE_MAG) && !defined(USE_FAKE_MAG)
+#if defined(USE_MAG) && !defined(USE_VIRTUAL_MAG)
+
+#ifndef USE_MAG_DATA_READY_SIGNAL
 #define USE_MAG_DATA_READY_SIGNAL
+#endif
+#ifndef USE_MAG_HMC5883
 #define USE_MAG_HMC5883
+#endif
+#ifndef USE_MAG_SPI_HMC5883
 #define USE_MAG_SPI_HMC5883
+#endif
+#ifndef USE_MAG_QMC5883
 #define USE_MAG_QMC5883
+#endif
+#ifndef USE_MAG_LIS2MDL
+#define USE_MAG_LIS2MDL
+#endif
+#ifndef USE_MAG_LIS3MDL
 #define USE_MAG_LIS3MDL
+#endif
+#ifndef USE_MAG_AK8963
 #define USE_MAG_AK8963
+#endif
+#ifndef USE_MAG_MPU925X_AK8963
 #define USE_MAG_MPU925X_AK8963
+#endif
+#ifndef USE_MAG_SPI_AK8963
 #define USE_MAG_SPI_AK8963
+#endif
+#ifndef USE_MAG_AK8975
 #define USE_MAG_AK8975
 #endif
+#ifndef USE_MAG_IST8310
+#define USE_MAG_IST8310
+#endif
+
+#endif // END MAG HW defines
 
 #if defined(USE_RX_CC2500)
 
@@ -81,6 +146,10 @@
 #define USE_RX_SPEKTRUM_TELEMETRY
 
 #endif // defined(USE_RX_CC2500)
+
+#if defined(CAMERA_CONTROL_PIN) && defined(USE_VTX) && !defined(USE_CAMERA_CONTROL)
+#define USE_CAMERA_CONTROL
+#endif
 
 /* END HARDWARE INCLUSIONS */
 
@@ -117,12 +186,13 @@
 #endif
 #endif
 
-#if !defined(USE_BARO) && !defined(USE_GPS)
-#undef USE_VARIO
+// Add VARIO if BARO or GPS is defined. Remove when none defined.
+#if defined(USE_BARO) || defined(USE_GPS)
+#ifndef USE_VARIO
+#define USE_VARIO
 #endif
-
-#if defined(USE_BARO) && !defined(BARO_EOC_PIN)
-#define BARO_EOC_PIN NONE
+#else
+#undef USE_VARIO
 #endif
 
 #if !defined(USE_SERIALRX)
@@ -151,8 +221,17 @@
 #undef USE_TELEMETRY_SRXL
 
 #ifdef USE_SERIALRX_FPORT
+#ifndef USE_TELEMETRY
 #define USE_TELEMETRY
 #endif
+#ifndef USE_TELEMETRY_SMARTPORT
+#define USE_TELEMETRY_SMARTPORT
+#endif
+#endif
+#endif
+
+#if defined(USE_TELEMETRY_IBUS_EXTENDED) && !defined(USE_TELEMETRY_IBUS)
+#define USE_TELEMETRY_IBUS
 #endif
 
 #if !defined(USE_SERIALRX_CRSF)
@@ -190,7 +269,7 @@
 #undef USE_SPEKTRUM_BIND
 #undef USE_SPEKTRUM_BIND_PLUG
 #undef USE_SPEKTRUM_REAL_RSSI
-#undef USE_SPEKTRUM_FAKE_RSSI
+#undef USE_SPEKTRUM_VIRTUAL_RSSI
 #undef USE_SPEKTRUM_RSSI_PERCENT_CONVERSION
 #undef USE_SPEKTRUM_VTX_CONTROL
 #undef USE_SPEKTRUM_VTX_TELEMETRY
@@ -223,19 +302,18 @@
 #undef USE_VTX_MSP
 #endif
 
-// Burst dshot to default off if not configured explicitly by target
-#ifndef ENABLE_DSHOT_DMAR
-#define ENABLE_DSHOT_DMAR DSHOT_DMAR_OFF
-#endif
-
 // Some target doesn't define USE_ADC which USE_ADC_INTERNAL depends on
 #ifndef USE_ADC
 #undef USE_ADC_INTERNAL
 #endif
 
+#if (defined(USE_SDCARD) || defined(USE_FLASH)) && !defined(USE_BLACKBOX)
+#define USE_BLACKBOX
+#endif
+
 #ifdef USE_FLASH
-#define USE_FLASHFS
 #define USE_FLASH_TOOLS
+#define USE_FLASHFS
 #endif
 
 #if (defined(USE_FLASH_W25M512) || defined(USE_FLASH_W25Q128FV)) && !defined(USE_FLASH_M25P16)
@@ -254,7 +332,20 @@
 #define USE_FLASH_CHIP
 #endif
 
+#if defined(USE_SPI) && (defined(USE_FLASH_M25P16) || defined(USE_FLASH_W25M512) || defined(USE_FLASH_W25N01G) || defined(USE_FLASH_W25M02G))
+#define USE_FLASH_SPI
+#endif
+
+#if defined(USE_QUADSPI) && (defined(USE_FLASH_W25Q128FV) || defined(USE_FLASH_W25N01G))
+#define USE_FLASH_QUADSPI
+#endif
+
+#if defined(USE_OCTOSPI) && (defined(USE_FLASH_W25Q128FV))
+#define USE_FLASH_OCTOSPI
+#endif
+
 #ifndef USE_FLASH_CHIP
+#undef USE_FLASH_TOOLS
 #undef USE_FLASHFS
 #endif
 
@@ -287,7 +378,7 @@
 #if !defined(USE_ACC_MPU6500) && (defined(USE_ACC_ICM20601) || defined(USE_ACC_ICM20602) || defined(USE_ACC_ICM20608G))
 #define USE_ACC_MPU6500
 #endif
-#if !defined(USE_ACC_SPI_MPU6500) && (defined(USE_ACC_SPI_ICM20601) || defined(USE_ACC_SPI_ICM20602) || defined(USE_ACC_SPI_ICM20608G))
+#if !defined(USE_ACC_SPI_MPU6500) && (defined(USE_ACC_SPI_MPU9250) || defined(USE_ACC_SPI_ICM20601) || defined(USE_ACC_SPI_ICM20602) || defined(USE_ACC_SPI_ICM20608G))
 #define USE_ACC_SPI_MPU6500
 #endif
 #if !defined(USE_GYRO_MPU6500) && (defined(USE_GYRO_ICM20601) || defined(USE_GYRO_ICM20602) || defined(USE_GYRO_ICM20608G))
@@ -299,11 +390,25 @@
 
 // Generate USE_SPI_GYRO or USE_I2C_GYRO
 #if defined(USE_GYRO_L3G4200D) || defined(USE_GYRO_MPU3050) || defined(USE_GYRO_MPU6000) || defined(USE_GYRO_MPU6050) || defined(USE_GYRO_MPU6500)
+#ifndef USE_I2C_GYRO
 #define USE_I2C_GYRO
 #endif
+#endif
 
-#if defined(USE_GYRO_SPI_ICM20689) || defined(USE_GYRO_SPI_MPU6000) || defined(USE_GYRO_SPI_MPU6500) || defined(USE_GYRO_SPI_MPU9250) || defined(USE_GYRO_L3GD20) || defined(USE_GYRO_SPI_ICM42605) || defined(USE_GYRO_SPI_ICM42688P) || defined(USE_ACCGYRO_BMI270)
+#if defined(USE_GYRO_SPI_ICM20689) || defined(USE_GYRO_SPI_MPU6000) || defined(USE_GYRO_SPI_MPU6500) || defined(USE_GYRO_SPI_MPU9250) || defined(USE_GYRO_L3GD20) || defined(USE_GYRO_SPI_ICM42605) || defined(USE_GYRO_SPI_ICM42688P) || defined(USE_ACCGYRO_BMI160) || defined(USE_ACCGYRO_BMI270)
+#ifndef USE_SPI_GYRO
 #define USE_SPI_GYRO
+#endif
+#endif
+
+#ifndef SIMULATOR_BUILD
+#ifndef USE_ACC
+#define USE_ACC
+#endif
+
+#ifndef USE_GYRO
+#define USE_GYRO
+#endif
 #endif
 
 // CX10 is a special case of SPI RX which requires XN297
@@ -314,16 +419,16 @@
 // Setup crystal frequency on F4 for backward compatibility
 // Should be set to zero for generic targets to ensure USB is working
 // when unconfigured for targets with non-standard crystal.
-// Can be set at runtime with with CLI parameter 'system_hse_value'.
-#if !defined(SYSTEM_HSE_VALUE)
-#define SYSTEM_HSE_VALUE 0
+// Can be set at runtime with with CLI parameter 'system_hse_mhz'.
+#ifndef SYSTEM_HSE_MHZ
+#define SYSTEM_HSE_MHZ 0
 #endif
 
 // Number of pins that needs pre-init
 #ifdef USE_SPI
 #ifndef SPI_PREINIT_COUNT
 // 2 x 8 (GYROx2, BARO, MAG, MAX, FLASHx2, RX)
-#define SPI_PREINIT_COUNT 16 
+#define SPI_PREINIT_COUNT 16
 #endif
 #endif
 
@@ -376,6 +481,7 @@
 #ifndef USE_DSHOT_TELEMETRY
 #undef USE_RPM_FILTER
 #undef USE_DSHOT_TELEMETRY_STATS
+#undef USE_DYN_IDLE
 #endif
 
 #if !defined(USE_BOARD_INFO)
@@ -419,12 +525,8 @@
 #undef USE_CMS_GPS_RESCUE_MENU
 #endif
 
-// TODO: Remove this once HAL support is fixed for ESCSERIAL
-#ifdef STM32F7
-#undef USE_ESCSERIAL
-#endif
 
-#if defined(CONFIG_IN_RAM) || defined(CONFIG_IN_FILE) || defined(CONFIG_IN_EXTERNAL_FLASH) || defined(CONFIG_IN_SDCARD)
+#if defined(CONFIG_IN_RAM) || defined(CONFIG_IN_FILE) || defined(CONFIG_IN_EXTERNAL_FLASH) || defined(CONFIG_IN_SDCARD) || defined(CONFIG_IN_MEMORY_MAPPED_FLASH)
 #ifndef EEPROM_SIZE
 #define EEPROM_SIZE     4096
 #endif
@@ -443,24 +545,31 @@ extern uint8_t __config_end;
 #define USE_FLASH_BOOT_LOADER
 #endif
 
-#if !defined(USE_RPM_FILTER)
-#undef USE_DYN_IDLE
+#if defined(USE_FLASH_MEMORY_MAPPED)
+#if !defined(USE_RAM_CODE)
+#define USE_RAM_CODE
+#endif
+
+#define MMFLASH_CODE RAM_CODE
+#define MMFLASH_CODE_NOINLINE RAM_CODE NOINLINE
+
+#define MMFLASH_DATA FAST_DATA
+#define MMFLASH_DATA_ZERO_INIT FAST_DATA_ZERO_INIT
+#else
+#define MMFLASH_CODE
+#define MMFLASH_CODE_NOINLINE
+#define MMFLASH_DATA
+#define MMFLASH_DATA_ZERO_INIT
+#endif
+
+#ifdef USE_RAM_CODE
+// RAM_CODE for methods that need to be in RAM, but don't need to be in the fastest type of memory.
+// Note: if code is marked as RAM_CODE it *MUST* be in RAM, there is no alternative unlike functions marked with FAST_CODE/CCM_CODE
+#define RAM_CODE                   __attribute__((section(".ram_code")))
 #endif
 
 #ifndef USE_ITERM_RELAX
 #undef USE_ABSOLUTE_CONTROL
-#endif
-
-#if defined(USE_CUSTOM_DEFAULTS)
-#define USE_CUSTOM_DEFAULTS_ADDRESS
-#endif
-
-#if defined(USE_RX_EXPRESSLRS) && defined(STM32F411)
-#define RX_SPI_DEFAULT_PROTOCOL          RX_SPI_EXPRESSLRS
-#endif
-
-#if defined(USE_RX_EXPRESSLRS) && !defined(RX_EXPRESSLRS_TIMER_INSTANCE) && (defined(STM32F411) || defined(STM32F405) || defined(STM32F745) || defined(STM32H7))
-#define RX_EXPRESSLRS_TIMER_INSTANCE     TIM5
 #endif
 
 #if defined(USE_RX_EXPRESSLRS)
@@ -479,10 +588,15 @@ extern uint8_t __config_end;
 #endif
 #endif
 
-#if defined(USE_RX_SPI) || defined (USE_SERIALRX_SRXL2)
+#if defined(USE_RX_SPI) || defined(USE_SERIALRX_SRXL2)
 #define USE_RX_BIND
 #endif
 
 #ifndef USE_GPS
 #undef USE_GPS_PLUS_CODES
+#undef USE_GPS_LAP_TIMER
+#endif
+
+#ifdef USE_GPS_LAP_TIMER
+#define USE_CMS_GPS_LAP_TIMER_MENU
 #endif

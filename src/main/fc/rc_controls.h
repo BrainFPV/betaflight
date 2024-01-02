@@ -84,28 +84,27 @@ typedef enum {
 
 extern float rcCommand[4];
 
-typedef struct rcSmoothingFilterTraining_s {
-    float sum;
-    int count;
-    uint16_t min;
-    uint16_t max;
-} rcSmoothingFilterTraining_t;
-
 typedef struct rcSmoothingFilter_s {
     bool filterInitialized;
-    pt3Filter_t filter[4];
-    pt3Filter_t filterDeflection[2];
+    pt3Filter_t filterSetpoint[4];
+    pt3Filter_t filterRcDeflection[2];
+    pt3Filter_t filterFeedforward[3];
+
     uint8_t setpointCutoffSetting;
     uint8_t throttleCutoffSetting;
+    uint8_t feedforwardCutoffSetting;
+
     uint16_t setpointCutoffFrequency;
     uint16_t throttleCutoffFrequency;
-    uint8_t ffCutoffSetting;
     uint16_t feedforwardCutoffFrequency;
-    int averageFrameTimeUs;
-    rcSmoothingFilterTraining_t training;
+
+    float smoothedRxRateHz;
+    uint8_t sampleCount;
     uint8_t debugAxis;
-    uint8_t autoSmoothnessFactorSetpoint;
-    uint8_t autoSmoothnessFactorThrottle;
+
+    float autoSmoothnessFactorSetpoint;
+    float autoSmoothnessFactorFeedforward;
+    float autoSmoothnessFactorThrottle;
 } rcSmoothingFilter_t;
 
 typedef struct rcControlsConfig_s {
@@ -131,7 +130,7 @@ typedef struct flight3DConfig_s {
 PG_DECLARE(flight3DConfig_t, flight3DConfig);
 
 typedef struct armingConfig_s {
-    uint8_t gyro_cal_on_first_arm;          // allow disarm/arm on throttle down + roll left/right
+    uint8_t gyro_cal_on_first_arm;          // calibrate the gyro right before the first arm
     uint8_t auto_disarm_delay;              // allow automatically disarming multicopters after auto_disarm_delay seconds of zero throttle. Disabled when 0
 } armingConfig_t;
 
@@ -139,11 +138,9 @@ PG_DECLARE(armingConfig_t, armingConfig);
 
 bool areUsingSticksToArm(void);
 
-bool areSticksInApModePosition(uint16_t ap_mode);
 throttleStatus_e calculateThrottleStatus(void);
 void processRcStickPositions();
 
 bool isUsingSticksForArming(void);
 
-int32_t getRcStickDeflection(int32_t axis, uint16_t midrc);
 void rcControlsInit(void);

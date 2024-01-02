@@ -35,7 +35,7 @@
 
 #include "config/feature.h"
 
-#include "drivers/camera_control.h"
+#include "drivers/camera_control_impl.h"
 
 #include "config/config.h"
 #include "fc/core.h"
@@ -85,7 +85,7 @@ PG_RESET_TEMPLATE(rcControlsConfig_t, rcControlsConfig,
 PG_REGISTER_WITH_RESET_TEMPLATE(armingConfig_t, armingConfig, PG_ARMING_CONFIG, 1);
 
 PG_RESET_TEMPLATE(armingConfig_t, armingConfig,
-    .gyro_cal_on_first_arm = 0,  // TODO - Cleanup retarded arm support
+    .gyro_cal_on_first_arm = 0,
     .auto_disarm_delay = 5
 );
 
@@ -103,11 +103,6 @@ PG_RESET_TEMPLATE(flight3DConfig_t, flight3DConfig,
 bool isUsingSticksForArming(void)
 {
     return isUsingSticksToArm;
-}
-
-bool areSticksInApModePosition(uint16_t ap_mode)
-{
-    return fabsf(rcCommand[ROLL]) < ap_mode && fabsf(rcCommand[PITCH]) < ap_mode;
 }
 
 throttleStatus_e calculateThrottleStatus(void)
@@ -177,10 +172,16 @@ void processRcStickPositions(void)
             resetTryingToArm();
             // Disarming via ARM BOX
             resetArmingDisabled();
-            const bool switchFailsafe = (failsafeIsActive() && (IS_RC_MODE_ACTIVE(BOXFAILSAFE) || IS_RC_MODE_ACTIVE(BOXGPSRESCUE)));
-            if (ARMING_FLAG(ARMED) && (failsafeIsReceivingRxData() || switchFailsafe)) {
+            const bool boxFailsafeSwitchIsOn = IS_RC_MODE_ACTIVE(BOXFAILSAFE);
+            if (ARMING_FLAG(ARMED) && (failsafeIsReceivingRxData() || boxFailsafeSwitchIsOn)) {
+                // in a true signal loss situation, allow disarm only once we regain validated RxData (failsafeIsReceivingRxData = true),
+                // to avoid potentially false disarm signals soon after link recover
+                // Note that BOXFAILSAFE will also drive failsafeIsReceivingRxData false (immediately at start or end)
+                // That's why we explicitly allow disarm here BOXFAILSAFE switch is active
+                // Note that BOXGPSRESCUE mode does not trigger failsafe - we can always disarm in that mode
                 rcDisarmTicks++;
                 if (rcDisarmTicks > 3) {
+                    // require three duplicate disarm values in a row before we disarm
                     disarm(DISARM_REASON_SWITCH);
                 }
             }
@@ -408,10 +409,6 @@ void processRcStickPositions(void)
         cameraControlKeyPress(CAMERA_CONTROL_KEY_UP, 2000);
     }
 #endif
-}
-
-int32_t getRcStickDeflection(int32_t axis, uint16_t midrc) {
-    return MIN(abs((int32_t)rcData[axis] - midrc), 500);
 }
 
 void rcControlsInit(void)

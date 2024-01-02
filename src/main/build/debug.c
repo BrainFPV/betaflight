@@ -18,8 +18,6 @@
  * If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
-
 #include "platform.h"
 
 #include "debug.h"
@@ -104,8 +102,19 @@ const char * const debugModeNames[DEBUG_COUNT] = {
     "GPS_RESCUE_VELOCITY",
     "GPS_RESCUE_HEADING",
     "GPS_RESCUE_TRACKING",
+    "GPS_CONNECTION",
     "ATTITUDE",
     "VTX_MSP",
     "GPS_DOP",
     "FAILSAFE",
+    "GYRO_CALIBRATION",
+    "ANGLE_MODE",
+    "ANGLE_TARGET",
+    "CURRENT_ANGLE",
+    "DSHOT_TELEMETRY_COUNTS",
+    "RPM_LIMIT",
+    "RC_STATS",
+    "MAG_CALIB",
+    "MAG_TASK_RATE",
+    "EZLANDING",
 };

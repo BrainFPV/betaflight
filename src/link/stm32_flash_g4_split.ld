@@ -39,7 +39,7 @@ SECTIONS
 
   .isr_vector :
   {
-    . = ALIGN(512);
+    . = ALIGN(4);
     PROVIDE (isr_vector_table_base = .);
     KEEP(*(.isr_vector)) /* Startup code */
     . = ALIGN(4);
@@ -118,22 +118,6 @@ SECTIONS
     KEEP (*(.pg_resetdata))
     PROVIDE_HIDDEN (__pg_resetdata_end = .);
   } >FLASH1
-
-  /* Storage for the address for the configuration section so we can grab it out of the hex file */
-  .custom_defaults :
-  {
-    . = ALIGN(4);
-    KEEP (*(.custom_defaults_start_address))
-    . = ALIGN(4);
-    KEEP (*(.custom_defaults_end_address))
-    . = ALIGN(4);
-    __custom_defaults_internal_start = .;
-    KEEP (*(.custom_defaults))
-    . = ALIGN(4);
-  } >FLASH_CUSTOM_DEFAULTS
-
-  PROVIDE_HIDDEN (__custom_defaults_start = DEFINED(USE_CUSTOM_DEFAULTS_EXTENDED) ? ORIGIN(FLASH_CUSTOM_DEFAULTS_EXTENDED) : __custom_defaults_internal_start);
-  PROVIDE_HIDDEN (__custom_defaults_end = DEFINED(USE_CUSTOM_DEFAULTS_EXTENDED) ? ORIGIN(FLASH_CUSTOM_DEFAULTS_EXTENDED) + LENGTH(FLASH_CUSTOM_DEFAULTS_EXTENDED) : ORIGIN(FLASH_CUSTOM_DEFAULTS) + LENGTH(FLASH_CUSTOM_DEFAULTS));
 
   /* used by the startup to initialize data */
   _sidata = LOADADDR(.data);

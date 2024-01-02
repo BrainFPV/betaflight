@@ -15,6 +15,7 @@
  * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 
 extern "C" {
@@ -97,8 +98,10 @@ extern "C" {
     bool mockIsUpright = false;
     uint8_t activePidLoopDenom = 1;
 
-    float gpsGetSampleRateHz(void) { return 10.0f; }
+    float getGpsDataIntervalSeconds(void) { return 0.1f; }
+    void pt1FilterUpdateCutoff(pt1Filter_t *filter, float k) { filter->k = k; }
     void pt2FilterUpdateCutoff(pt2Filter_t *filter, float k) { filter->k = k; }
+    void pt3FilterUpdateCutoff(pt3Filter_t *filter, float k) { filter->k = k; }
 }
 
 uint32_t simulationFeatureFlags = 0;
@@ -370,7 +373,7 @@ TEST(ArmingPreventionTest, RadioTurnedOnAtAnyTimeArmed)
     // expect
     EXPECT_FALSE(isUsingSticksForArming());
     EXPECT_TRUE(isArmingDisabled());
-    EXPECT_EQ(ARMING_DISABLED_BAD_RX_RECOVERY | ARMING_DISABLED_ARM_SWITCH, getArmingDisableFlags());
+    EXPECT_EQ(ARMING_DISABLED_NOT_DISARMED | ARMING_DISABLED_ARM_SWITCH, getArmingDisableFlags());
 
     // given
     // arm switch turned off by user
@@ -1081,7 +1084,7 @@ extern "C" {
     void failsafeStartMonitoring(void) {}
     void failsafeUpdateState(void) {}
     bool failsafeIsActive(void) { return false; }
-    bool failsafeIsReceivingRxData(void) { return false; }
+    bool failsafeIsReceivingRxData(void) { return true; }
     bool rxAreFlightChannelsValid(void) { return false; }
     void pidResetIterm(void) {}
     void updateAdjustmentStates(void) {}
@@ -1143,11 +1146,18 @@ extern "C" {
         UNUSED(throttleDLpf);
         return 0.0f;
     }
-    void pt3FilterInit(pt3Filter_t *pitchLpf, float) {
-        UNUSED(pitchLpf);
+    void pt1FilterInit(pt1Filter_t *velocityDLpf, float) {
+        UNUSED(velocityDLpf);
     }
-    float pt3FilterApply(pt3Filter_t *pitchLpf, float) {
-        UNUSED(pitchLpf);
+    float pt1FilterApply(pt1Filter_t *velocityDLpf, float) {
+        UNUSED(velocityDLpf);
+        return 0.0f;
+    }
+    void pt3FilterInit(pt3Filter_t *velocityUpsampleLpf, float) {
+        UNUSED(velocityUpsampleLpf);
+    }
+    float pt3FilterApply(pt3Filter_t *velocityUpsampleLpf, float) {
+        UNUSED(velocityUpsampleLpf);
         return 0.0f;
     }
     void getRcDeflectionAbs(void) {}

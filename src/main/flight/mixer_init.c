@@ -27,6 +27,8 @@
 #include "build/build_config.h"
 #include "build/debug.h"
 
+#include "common/maths.h"
+
 #include "config/config.h"
 #include "config/feature.h"
 
@@ -35,6 +37,7 @@
 #include "fc/controlrate_profile.h"
 #include "fc/runtime_config.h"
 
+#include "mixer.h"
 #include "flight/mixer_tricopter.h"
 #include "flight/pid.h"
 
@@ -44,15 +47,23 @@
 
 #include "mixer_init.h"
 
-PG_REGISTER_WITH_RESET_TEMPLATE(mixerConfig_t, mixerConfig, PG_MIXER_CONFIG, 0);
+PG_REGISTER_WITH_RESET_FN(mixerConfig_t, mixerConfig, PG_MIXER_CONFIG, 1);
 
-PG_RESET_TEMPLATE(mixerConfig_t, mixerConfig,
-    .mixerMode = DEFAULT_MIXER,
-    .yaw_motors_reversed = false,
-    .crashflip_motor_percent = 0,
-    .crashflip_expo = 35,
-    .mixer_type = MIXER_LEGACY,
-);
+void pgResetFn_mixerConfig(mixerConfig_t *mixerConfig)
+{
+    mixerConfig->mixerMode = DEFAULT_MIXER;
+    mixerConfig->yaw_motors_reversed = false;
+    mixerConfig->crashflip_motor_percent = 0;
+    mixerConfig->crashflip_expo = 35;
+    mixerConfig->mixer_type = MIXER_LEGACY;
+#ifdef USE_RPM_LIMIT
+    mixerConfig->rpm_limit = false;
+    mixerConfig->rpm_limit_p = 25;
+    mixerConfig->rpm_limit_i = 10;
+    mixerConfig->rpm_limit_d = 8;
+    mixerConfig->rpm_limit_value = 18000;
+#endif
+}
 
 PG_REGISTER_ARRAY(motorMixer_t, MAX_SUPPORTED_MOTORS, customMotorMixer, PG_MOTOR_MIXER, 0);
 
@@ -152,6 +163,17 @@ static const motorMixer_t mixerOctoX8[] = {
     { 1.0f,  1.0f, -1.0f,  1.0f },          // UNDER_FRONT_L
 };
 
+static const motorMixer_t mixerOctoX8P[] = {
+    { 1.0f,  0.0f,  1.0f, -1.0f },          // REAR
+    { 1.0f, -1.0f,  0.0f,  1.0f },          // RIGHT
+    { 1.0f,  1.0f,  0.0f,  1.0f },          // LEFT
+    { 1.0f,  0.0f, -1.0f, -1.0f },          // FRONT
+    { 1.0f,  0.0f,  1.0f,  1.0f },          // UNDER_REAR
+    { 1.0f, -1.0f,  0.0f, -1.0f },          // UNDER_RIGHT
+    { 1.0f,  1.0f,  0.0f, -1.0f },          // UNDER_LEFT
+    { 1.0f,  0.0f, -1.0f,  1.0f },          // UNDER_FRONT
+};
+
 static const motorMixer_t mixerOctoFlatP[] = {
     { 1.0f,  0.707107f, -0.707107f,  1.0f },    // FRONT_L
     { 1.0f, -0.707107f, -0.707107f,  1.0f },    // FRONT_R
@@ -175,6 +197,7 @@ static const motorMixer_t mixerOctoFlatX[] = {
 };
 #else
 #define mixerOctoX8 NULL
+#define mixerOctoX8P NULL
 #define mixerOctoFlatP NULL
 #define mixerOctoFlatX NULL
 #endif
@@ -244,7 +267,8 @@ const mixer_t mixers[] = {
     { 0, false, NULL },                // MIXER_CUSTOM
     { 2, true,  NULL },                // MIXER_CUSTOM_AIRPLANE
     { 3, true,  NULL },                // MIXER_CUSTOM_TRI
-    { 4, false, mixerQuadX1234 },
+    { 4, false, mixerQuadX1234 },      // MIXER_QUADX_1234
+    { 8, false, mixerOctoX8P },        // MIXER_OCTOX8P
 };
 #endif // !USE_QUAD_MIXER_ONLY
 
@@ -264,13 +288,21 @@ bool areMotorsRunning(void)
         for (int i = 0; i < mixerRuntime.motorCount; i++) {
             if (motor_disarmed[i] != mixerRuntime.disarmMotorOutput) {
                 motorsRunning = true;
-
                 break;
             }
         }
     }
-
     return motorsRunning;
+}
+
+bool areMotorsSaturated(void)
+{
+    for (int i = 0; i < getMotorCount(); i++) {
+        if (motor[i] >= motorConfig()->maxthrottle) {
+            return true;
+        }
+    }
+    return false;
 }
 
 #ifdef USE_SERVOS
@@ -305,6 +337,7 @@ void mixerInitProfile(void)
     mixerRuntime.dynIdleIGain = currentPidProfile->dyn_idle_i_gain * 0.01f * pidGetDT();
     mixerRuntime.dynIdleDGain = currentPidProfile->dyn_idle_d_gain * 0.0000003f * pidGetPidFrequency();
     mixerRuntime.dynIdleMaxIncrease = currentPidProfile->dyn_idle_max_increase * 0.001f;
+    mixerRuntime.dynIdleStartIncrease = currentPidProfile->dyn_idle_start_increase * 0.001f;
     mixerRuntime.minRpsDelayK = 800 * pidGetDT() / 20.0f; //approx 20ms D delay, arbitrarily suits many motors
     if (!mixerRuntime.feature3dEnabled && mixerRuntime.dynIdleMinRps) {
         mixerRuntime.motorOutputLow = DSHOT_MIN_THROTTLE; // Override value set by initEscEndpoints to allow zero motor drive
@@ -313,7 +346,7 @@ void mixerInitProfile(void)
 
 #if defined(USE_BATTERY_VOLTAGE_SAG_COMPENSATION)
     mixerRuntime.vbatSagCompensationFactor = 0.0f;
-    if (currentPidProfile->vbat_sag_compensation > 0) {
+    if (currentPidProfile->vbat_sag_compensation > 0 && !RPM_LIMIT_ACTIVE) {
         //TODO: Make this voltage user configurable
         mixerRuntime.vbatFull = CELL_VOLTAGE_FULL_CV;
         mixerRuntime.vbatRangeToCompensate = mixerRuntime.vbatFull - batteryConfig()->vbatwarningcellvoltage;
@@ -322,7 +355,31 @@ void mixerInitProfile(void)
         }
     }
 #endif
+
+#ifdef USE_RPM_LIMIT
+    mixerRuntime.rpmLimiterRpmLimit = mixerConfig()->rpm_limit_value;
+    mixerRuntime.rpmLimiterPGain = mixerConfig()->rpm_limit_p * 15e-6f;
+    mixerRuntime.rpmLimiterIGain = mixerConfig()->rpm_limit_i * 1e-3f * pidGetDT();
+    mixerRuntime.rpmLimiterDGain = mixerConfig()->rpm_limit_d * 3e-7f * pidGetPidFrequency();
+    mixerRuntime.rpmLimiterI = 0.0;
+    pt1FilterInit(&mixerRuntime.rpmLimiterAverageRpmFilter, pt1FilterGain(6.0f, pidGetDT()));
+    pt1FilterInit(&mixerRuntime.rpmLimiterThrottleScaleOffsetFilter, pt1FilterGain(2.0f, pidGetDT()));
+    mixerResetRpmLimiter();
+#endif
+
+    mixerRuntime.ezLandingThreshold = 2.0f * currentPidProfile->ez_landing_threshold / 100.0f;
+    mixerRuntime.ezLandingLimit = currentPidProfile->ez_landing_limit / 100.0f;
 }
+
+#ifdef USE_RPM_LIMIT
+void mixerResetRpmLimiter(void)
+{
+    mixerRuntime.rpmLimiterI = 0.0;
+    mixerRuntime.rpmLimiterThrottleScale = constrainf(mixerRuntime.rpmLimiterRpmLimit / motorEstimateMaxRpm(), 0.0f, 1.0f);
+    mixerRuntime.rpmLimiterInitialThrottleScale = mixerRuntime.rpmLimiterThrottleScale;
+}
+
+#endif // USE_RPM_LIMIT
 
 #ifdef USE_LAUNCH_CONTROL
 // Create a custom mixer for launch control based on the current settings

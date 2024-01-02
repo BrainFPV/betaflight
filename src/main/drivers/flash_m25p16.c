@@ -104,7 +104,7 @@ struct {
     { 0xEF4016, 133, 50, 64, 256 },
     // Winbond W25Q64
     // Datasheet: https://www.winbond.com/resource-files/w25q64jv%20spi%20%20%20revc%2006032016%20kms.pdf
-    { 0xEF4017, 133, 50, 128, 256 }, // W25Q64JV-IQ/JQ 
+    { 0xEF4017, 133, 50, 128, 256 }, // W25Q64JV-IQ/JQ
     { 0xEF7017, 133, 50, 128, 256 }, // W25Q64JV-IM/JM*
     // Winbond W25Q128
     // Datasheet: https://www.winbond.com/resource-files/w25q128fv%20rev.l%2008242015.pdf
@@ -156,7 +156,7 @@ static uint8_t m25p16_page_buffer[M25P16_PAGESIZE];
 
 static uint8_t m25p16_readStatus(flashDevice_t *fdevice)
 {
-    uint8_t status;
+    uint8_t status = 0;
     if (fdevice->io.mode == FLASHIO_SPI) {
         STATIC_DMA_DATA_AUTO uint8_t readStatus[2] = { M25P16_INSTRUCTION_READ_STATUS_REG, 0 };
         STATIC_DMA_DATA_AUTO uint8_t readyStatus[2];
@@ -164,14 +164,12 @@ static uint8_t m25p16_readStatus(flashDevice_t *fdevice)
         spiReadWriteBuf(fdevice->io.handle.dev, readStatus, readyStatus, sizeof(readStatus));
 
         status = readyStatus[1];
-    }
+    } else {
 #ifdef USE_QUADSPI
-    else if (fdevice->io.mode == FLASHIO_QUADSPI) {
-        quadSpiReceive1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_READ_STATUS_REG, 0, &status, 1);
-    }
+       if (fdevice->io.mode == FLASHIO_QUADSPI) {
+            quadSpiReceive1LINE(fdevice->io.handle.quadSpi, M25P16_INSTRUCTION_READ_STATUS_REG, 0, &status, 1);
+        }
 #endif
-    else {
-        status = 0;
     }
 
     return status;
@@ -209,13 +207,13 @@ static bool m25p16_waitForReady(flashDevice_t *fdevice)
  *
  * Returns true if we get valid ident, false if something bad happened like there is no M25P16.
  */
-bool m25p16_detect(flashDevice_t *fdevice, uint32_t chipID)
+bool m25p16_identify(flashDevice_t *fdevice, uint32_t jedecID)
 {
     flashGeometry_t *geometry = &fdevice->geometry;
     uint8_t index;
 
     for (index = 0; m25p16FlashConfig[index].jedecID; index++) {
-        if (m25p16FlashConfig[index].jedecID == chipID) {
+        if (m25p16FlashConfig[index].jedecID == jedecID) {
             maxClkSPIHz = m25p16FlashConfig[index].maxClkSPIMHz * 1000000;
             maxReadClkSPIHz = m25p16FlashConfig[index].maxReadClkSPIMHz * 1000000;
             geometry->sectors = m25p16FlashConfig[index].sectors;
@@ -245,11 +243,32 @@ bool m25p16_detect(flashDevice_t *fdevice, uint32_t chipID)
     geometry->sectorSize = geometry->pagesPerSector * geometry->pageSize;
     geometry->totalSize = geometry->sectorSize * geometry->sectors;
 
+    fdevice->couldBeBusy = true; // Just for luck we'll assume the chip could be busy even though it isn't specced to be
+    fdevice->couldBeBusy = true; // Just for luck we'll assume the chip could be busy even though it isn't specced to be
+
+    if (fdevice->io.mode == FLASHIO_SPI) {
+        fdevice->vTable = &m25p16_vTable;
+    }
+#ifdef USE_QUADSPI
+    else if (fdevice->io.mode == FLASHIO_QUADSPI) {
+        fdevice->vTable = &m25p16Qspi_vTable;
+    }
+#endif
+    return true;
+}
+
+void m25p16_configure(flashDevice_t *fdevice, uint32_t configurationFlags)
+{
+    if (configurationFlags & FLASH_CF_SYSTEM_IS_MEMORY_MAPPED) {
+        return;
+    }
+
     if (fdevice->io.mode == FLASHIO_SPI) {
         // Adjust the SPI bus clock frequency
         spiSetClkDivisor(fdevice->io.handle.dev, spiCalculateDivider(maxReadClkSPIHz));
     }
 
+    flashGeometry_t *geometry = &fdevice->geometry;
     if (geometry->totalSize > 16 * 1024 * 1024) {
         fdevice->isLargeFlash = true;
 
@@ -265,19 +284,8 @@ bool m25p16_detect(flashDevice_t *fdevice, uint32_t chipID)
         }
 #endif
     }
-
-    fdevice->couldBeBusy = true; // Just for luck we'll assume the chip could be busy even though it isn't specced to be
-
-    if (fdevice->io.mode == FLASHIO_SPI) {
-        fdevice->vTable = &m25p16_vTable;
-    }
-#ifdef USE_QUADSPI
-    else if (fdevice->io.mode == FLASHIO_QUADSPI) {
-        fdevice->vTable = &m25p16Qspi_vTable;
-    }
-#endif
-    return true;
 }
+
 
 static void m25p16_setCommandAddress(uint8_t *buf, uint32_t address, bool useLongAddress)
 {
@@ -643,6 +651,7 @@ static const flashGeometry_t* m25p16_getGeometry(flashDevice_t *fdevice)
 }
 
 const flashVTable_t m25p16_vTable = {
+    .configure = m25p16_configure,
     .isReady = m25p16_isReady,
     .waitForReady = m25p16_waitForReady,
     .eraseSector = m25p16_eraseSector,
