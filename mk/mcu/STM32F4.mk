@@ -141,17 +141,15 @@ LD_SCRIPT       = $(LINKER_DIR)/stm32_flash_f405.ld
 STARTUP_SRC     = startup_stm32f40xx.s
 MCU_FLASH_SIZE  := 1024
 
-else ifeq ($(TARGET),$(filter $(TARGET),$(BRAINFPV_F446_TARGETS)))
-DEVICE_FLAGS    = -DSTM32F446xx
-LD_SCRIPT       = $(LINKER_DIR)/stm32_flash_f446_brainfpv.ld
-STARTUP_SRC     = startup_stm32f446xx_brainfpv.s
-MCU_FLASH_SIZE  := 512
-
-
 else ifeq ($(TARGET_MCU),STM32F446xx)
 DEVICE_FLAGS    = -DSTM32F446xx
+ifneq ($(filter BRAINFPV,$(FEATURES)),)
+LD_SCRIPT       = $(LINKER_DIR)/stm32_flash_f446_brainfpv.ld
+STARTUP_SRC     = startup_stm32f446xx_brainfpv.s
+else
 LD_SCRIPT       = $(LINKER_DIR)/stm32_flash_f446.ld
 STARTUP_SRC     = startup_stm32f446xx.s
+endif
 MCU_FLASH_SIZE  := 512
 
 else
