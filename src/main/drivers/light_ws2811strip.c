@@ -263,7 +263,7 @@ bool isWS2811LedStripReady(void)
     return true;
 }
 
-void ws2811UpdateStrip(ledStripFormatRGB_e ledFormat, uint8_t brightness)
+bool ws2811UpdateStrip(ledStripFormatRGB_e ledFormat, uint8_t brightness)
 {
     static rgbColor24bpp_t *rgb24;
     hsvColor_t scaledLed;
@@ -293,6 +293,8 @@ void ws2811UpdateStrip(ledStripFormatRGB_e ledFormat, uint8_t brightness)
     }
 
     BRAINFPVFPGA_SetLEDs(led_data, ledUpdateCount + 1);
+
+    return true;
 }
 #endif /* USE_BRAINFPV_FPGA */
 
