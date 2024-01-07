@@ -114,8 +114,6 @@ ifneq ($(BOARD),)
 -include $(ROOT)/src/main/board/$(BOARD)/board.mk
 endif
 
-include $(ROOT)/make/targets.mk
-
 REVISION := norevision
 ifeq ($(shell git diff --shortstat),)
 REVISION := $(shell git log -1 --format="%h")
@@ -356,7 +354,7 @@ TARGET_OBJS     = $(addsuffix .o,$(addprefix $(TARGET_OBJ_DIR)/,$(basename $(SRC
 TARGET_DEPS     = $(addsuffix .d,$(addprefix $(TARGET_OBJ_DIR)/,$(basename $(SRC))))
 TARGET_MAP      = $(OBJECT_DIR)/$(FORKNAME)_$(TARGET_NAME).map
 
-TARGET_BRAIN_BIN = $(TARGET_BASENAME)_brainfpv.bin
+TARGET_BRAIN_BIN = $(BIN_DIR)/$(TARGET_FULLNAME)_brainfpv.bin
 
 TARGET_EXST_HASH_SECTION_FILE = $(TARGET_OBJ_DIR)/exst_hash_section.bin
 
@@ -511,7 +509,7 @@ all: $(CI_TARGETS)
 
 $(BASE_TARGETS):
 	$(V0) @echo "Building target $@" && \
-	$(MAKE) hex TARGET=$@ && \
+	$(MAKE) brainfpv_bin TARGET=$@ && \
 	echo "Building $@ succeeded."
 
 TARGETS_CLEAN = $(addsuffix _clean,$(BASE_TARGETS))
