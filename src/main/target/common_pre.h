@@ -270,20 +270,14 @@
 
 #endif // !defined(CLOUD_BUILD)
 
-<<<<<<< HEAD
 #if defined(BRAINFPV)
 #include "brainfpv/brainfpv_features.h"
 #endif
 
 
-#if !defined(LED_MAX_STRIP_LENGTH)
-#ifdef USE_LEDSTRIP_64
-#define LED_MAX_STRIP_LENGTH           64
-=======
 #if !defined(LED_STRIP_MAX_LENGTH)
 #ifdef USE_LED_STRIP_64
 #define LED_STRIP_MAX_LENGTH           64
->>>>>>> 4.5.0-RC1
 #else
 #define LED_STRIP_MAX_LENGTH           32
 #endif
