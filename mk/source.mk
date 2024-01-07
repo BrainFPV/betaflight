@@ -500,7 +500,7 @@ SRC += brainfpv/brainfpv_system.c \
        brainfpv/auto_sync_threshold.c \
        io/displayport_max7456.c \
        cms/cms_menu_brainfpv.c
-ifeq ($(TARGET),$(filter $(TARGET),$(H750xB_TARGETS)))
+ifeq ($(TARGET_MCU),$(filter $(TARGET_MCU),STM32H750xx))
 SRC +=  $(ROOT)/lib/main/STM32H7/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_mdma.c \
         $(ROOT)/lib/main/STM32H7/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_comp.c
 endif
@@ -540,13 +540,13 @@ SRC += $(CHIBIOS_HAL_PORT_DIR)/nvic.c
 
 DEVICE_FLAGS += -DUSE_CHIBIOS -DCORTEX_USE_FPU=TRUE -DCORTEX_SIMPLIFIED_PRIORITY=TRUE $(DDEFS)
 
-ifeq ($(TARGET),$(filter $(TARGET), $(F446_TARGETS)))
+ifeq ($(TARGET_MCU),$(filter $(TARGET_MCU),STM32F446xx))
 DEVICE_FLAGS += -DSTM32F4XX
 INCLUDE_DIRS += $(CHIBIOS_DIR)/os/common/startup/ARMCMx/devices/STM32F4xx
 INCLUDE_DIRS += $(CHIBIOS_DIR)/os/hal/ports/STM32/STM32F4xx
 endif
 
-ifeq ($(TARGET),$(filter $(TARGET),$(H750xB_TARGETS)))
+ifeq ($(TARGET_MCU),$(filter $(TARGET_MCU),STM32H750xx))
 DEVICE_FLAGS += -DSTM32H7XX
 INCLUDE_DIRS += $(CHIBIOS_DIR)/os/common/startup/ARMCMx/devices/STM32H7xx
 INCLUDE_DIRS += $(CHIBIOS_DIR)/os/hal/ports/STM32/STM32H7xx
