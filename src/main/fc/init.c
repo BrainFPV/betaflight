@@ -266,18 +266,6 @@ static void sdCardAndFSInit(void)
 }
 #endif
 
-static void swdPinsInit(void)
-{
-    IO_t io = IOGetByTag(DEFIO_TAG_E(PA13)); // SWDIO
-    if (IOGetOwner(io) == OWNER_FREE) {
-        IOInit(io, OWNER_SWD, 0);
-    }
-    io = IOGetByTag(DEFIO_TAG_E(PA14)); // SWCLK
-    if (IOGetOwner(io) == OWNER_FREE) {
-        IOInit(io, OWNER_SWD, 0);
-    }
-}
-
 SLOW_CODE void init(void)
 {
 #ifdef SERIAL_PORT_COUNT
