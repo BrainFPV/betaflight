@@ -197,6 +197,7 @@
 
 #if !defined(USE_SERIALRX)
 #undef USE_SERIALRX_CRSF
+#undef USE_SERIALRX_GHST
 #undef USE_SERIALRX_IBUS
 #undef USE_SERIALRX_JETIEXBUS
 #undef USE_SERIALRX_SBUS
@@ -281,7 +282,9 @@
 #endif
 
 #if defined(USE_SERIALRX_SBUS) || defined(USE_SERIALRX_FPORT)
+#if !defined(USE_SBUS_CHANNELS)
 #define USE_SBUS_CHANNELS
+#endif
 #endif
 
 #if !defined(USE_TELEMETRY_SMARTPORT) && !defined(USE_TELEMETRY_CRSF) && !defined(USE_TELEMETRY_GHST)
@@ -312,36 +315,54 @@
 #endif
 
 #ifdef USE_FLASH
+#if !defined(USE_FLASH_TOOLS)
 #define USE_FLASH_TOOLS
+#endif
+#if !defined(USE_FLASHFS)
 #define USE_FLASHFS
+#endif
 #endif
 
 #if (defined(USE_FLASH_W25M512) || defined(USE_FLASH_W25Q128FV)) && !defined(USE_FLASH_M25P16)
+#if !defined(USE_FLASH_M25P16)
 #define USE_FLASH_M25P16
+#endif
 #endif
 
 #if defined(USE_FLASH_W25M02G) && !defined(USE_FLASH_W25N01G)
+#if !defined(USE_FLASH_W25N01G)
 #define USE_FLASH_W25N01G
+#endif
 #endif
 
 #if (defined(USE_FLASH_M25P16) || defined(USE_FLASH_W25N01G)) && !defined(USE_FLASH_W25M)
+#if !defined(USE_FLASH_W25M)
 #define USE_FLASH_W25M
+#endif
 #endif
 
 #if defined(USE_FLASH_M25P16) || defined(USE_FLASH_W25M) || defined(USE_FLASH_W25N01G) || defined(USE_FLASH_W25Q128FV)
+#if !defined(USE_FLASH_CHIP)
 #define USE_FLASH_CHIP
+#endif
 #endif
 
 #if defined(USE_SPI) && (defined(USE_FLASH_M25P16) || defined(USE_FLASH_W25M512) || defined(USE_FLASH_W25N01G) || defined(USE_FLASH_W25M02G))
+#if !defined(USE_FLASH_SPI)
 #define USE_FLASH_SPI
+#endif
 #endif
 
 #if defined(USE_QUADSPI) && (defined(USE_FLASH_W25Q128FV) || defined(USE_FLASH_W25N01G))
+#if !defined(USE_FLASH_QUADSPI)
 #define USE_FLASH_QUADSPI
 #endif
+#endif
 
-#if defined(USE_OCTOSPI) && (defined(USE_FLASH_W25Q128FV))
+#if defined(USE_OCTOSPI) && defined(USE_FLASH_W25Q128FV)
+#if !defined(USE_FLASH_OCTOSPI)
 #define USE_FLASH_OCTOSPI
+#endif
 #endif
 
 #ifndef USE_FLASH_CHIP
@@ -588,7 +609,7 @@ extern uint8_t __config_end;
 #endif
 #endif
 
-#if defined(USE_RX_SPI) || defined(USE_SERIALRX_SRXL2)
+#if defined(USE_RX_SPI) || defined(USE_SERIALRX_SRXL2) || defined(USE_SERIALRX_CRSF)
 #define USE_RX_BIND
 #endif
 
