@@ -78,3 +78,12 @@
 #define USE_GPS_PLUS_CODES
 #define USE_SERIAL_4WAY_SK_BOOTLOADER
 #endif
+
+#if defined(STM32H7)
+#define SLOW_CONST   __attribute__((section(".slow_const")))
+#define SLOW_CODE    __attribute__((section(".slow_code")))
+#else
+#define SLOW_CONST
+#define SLOW_CODE
+#endif
+
