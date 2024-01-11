@@ -20,24 +20,10 @@
 #include "platform.h"
 #include "drivers/io.h"
 
-#include "drivers/dma.h"
-#include "drivers/timer.h"
-#include "drivers/timer_def.h"
-
 #include "fpga_drv.h"
 #include "brainfpv/brainfpv_osd.h"
 #include "brainfpv/brainfpv_system.h"
 #include "brainfpv/ir_transponder.h"
-
-const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {
-    DEF_TIM(TIM12, CH1, PB14, TIM_USE_PPM,   0, 0), // PPM In
-    DEF_TIM(TIM5,  CH1, PA0,  TIM_USE_MOTOR, 0, 0), // S1
-    DEF_TIM(TIM5,  CH2, PA1,  TIM_USE_MOTOR, 0, 0), // S2
-    DEF_TIM(TIM5,  CH3, PA2,  TIM_USE_MOTOR, 0, 0), // S3
-    DEF_TIM(TIM5,  CH4, PA3,  TIM_USE_MOTOR, 0, 0), // S4
-    DEF_TIM(TIM1,  CH3, PA10, TIM_USE_MOTOR, 0, 0), // S5
-    DEF_TIM(TIM2,  CH1, PA15,  TIM_USE_MOTOR, 0, 0), // S6
-};
 
 bool brainfpv_settings_updated_from_cms = false;
 

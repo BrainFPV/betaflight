@@ -22,7 +22,9 @@
 #define TARGET_BOARD_IDENTIFIER "BRAINRE1"
 
 // Uses a 16 MHz oscillator
-#define SYSTEM_HSE_VALUE 16
+#define SYSTEM_HSE_MHZ 16
+
+#define FLASH_PAGE_SIZE                 ((uint32_t)0x4000) // 16K sectors
 
 #define USBD_PRODUCT_STRING     "BrainRE1"
 
@@ -59,6 +61,8 @@
 #define FLASH_SPI_SHARED
 #define FLASH_CS_PIN           PB15
 #define FLASH_SPI_INSTANCE     SPI3
+
+#define DEFAULT_BLACKBOX_DEVICE BLACKBOX_DEVICE_FLASH
 
 #define USE_BRAINFPV_FPGA
 #define BRAINFPVFPGA_SPI_INSTANCE SPI3
@@ -151,35 +155,35 @@
 #define SERIAL_PORT_COUNT       4 //VCP, USART1, USART3, USART6
 
 #define USE_SPI
+#define USE_SPI_DMA_ENABLE_LATE
 
 #define USE_SPI_DEVICE_1
 #define SPI1_SCK_PIN            PA5
-#define SPI1_MISO_PIN           PA6
-#define SPI1_MOSI_PIN           PA7
+#define SPI1_SDI_PIN           PA6
+#define SPI1_SDO_PIN           PA7
 
 #define USE_SPI_DEVICE_3
 #define SPI3_SCK_PIN            PB3
-#define SPI3_MISO_PIN           PC11
-#define SPI3_MOSI_PIN           PC12
+#define SPI3_SDI_PIN           PC11
+#define SPI3_SDO_PIN           PC12
 // Disable DMA for SPI3
 #define SPI3_TX_DMA_OPT         -2
 #define SPI3_RX_DMA_OPT         -2
 
-
 #define USE_I2C
 #define USE_I2C_DEVICE_1
 #define USE_I2C_PULLUP
-#define I2C1_SCL                PB8
-#define I2C1_SDA                PB9
+#define I2C1_SCL_PIN            PB8
+#define I2C1_SDA_PIN            PB9
 
 #define BOARD_HAS_VOLTAGE_DIVIDER
 #define USE_ADC
 #define ADC1_DMA_OPT 1 // DMA2 Stream 4
-#define VBAT_ADC_PIN            PC0
-#define RSSI_ADC_PIN            PC3
-#define CURRENT_METER_ADC_PIN   PC1
-#define VBAT_SCALE_DEFAULT             66
-#define CURRENT_METER_SCALE_DEFAULT   250
+#define ADC_VBAT_PIN            PC0
+#define ADC_RSSI_PIN            PC3
+#define ADC_CURR_PIN            PC1
+#define DEFAULT_VOLTAGE_METER_SCALE    66
+#define DEFAULT_CURRENT_METER_SCALE   250
 #define DEFAULT_VOLTAGE_METER_SOURCE VOLTAGE_METER_ADC
 #define DEFAULT_CURRENT_METER_SOURCE CURRENT_METER_ADC
 
@@ -199,9 +203,26 @@
 
 #define USE_DSHOT
 #define USE_DSHOT_BITBAND
-#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(5) | TIM_N(12) )
+//#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(5) | TIM_N(12) )
 
 #define DSHOT_BITBANG_DEFAULT DSHOT_BITBANG_OFF
+
+#define MOTOR1_PIN           PA0   // TIM5 CH1
+#define MOTOR2_PIN           PA1   // TIM5 CH2
+#define MOTOR3_PIN           PA2   // TIM5 CH3
+#define MOTOR4_PIN           PA3   // TIM5 CH4
+#define MOTOR5_PIN           PA10  // TIM1 CH3
+#define MOTOR6_PIN           PA15  // TIM2 CH1
+#define RX_PPM_PIN           PB14  // TIM12 CH1
+
+#define TIMER_PIN_MAPPING \
+    TIMER_PIN_MAP( 0, PA0,  2,  0) \
+    TIMER_PIN_MAP( 1, PA1,  2,  0) \
+    TIMER_PIN_MAP( 2, PA2,  2,  0) \
+    TIMER_PIN_MAP( 3, PA3,  2,  0) \
+    TIMER_PIN_MAP( 4, PA10, 1,  0) \
+    TIMER_PIN_MAP( 5, PA15, 1,  0) \
+    TIMER_PIN_MAP( 6, PB14, 3,  0)
 
 extern bool brainfpv_settings_updated_from_cms;
 void brainFPVUpdateSettings(void);
