@@ -23,32 +23,10 @@
 #include "platform.h"
 #include "drivers/io.h"
 
-#include "drivers/dma.h"
-#include "drivers/timer.h"
-#include "drivers/timer_def.h"
-
 #include "fpga_drv.h"
 #include "brainfpv/brainfpv_osd.h"
 #include "brainfpv/brainfpv_system.h"
 #include "brainfpv/auto_sync_threshold.h"
-
-const timerHardware_t timerHardware[USABLE_TIMER_CHANNEL_COUNT] = {
-    DEF_TIM(TIM12, CH1, PB14,  TIM_USE_PPM,                 0,  0,  0 ), // PPM input
-    DEF_TIM(TIM14, CH1, PA7,   TIM_USE_CAMERA_CONTROL,      0,  0,  0 ),
-
-    DEF_TIM(TIM2,  CH1, PA0,   TIM_USE_MOTOR,               0,  0,  0 ), // M1
-	DEF_TIM(TIM3,  CH2, PB5,   TIM_USE_MOTOR,               0,  1,  0 ), // M2
-	DEF_TIM(TIM4,  CH1, PD12,  TIM_USE_MOTOR,               0,  2,  0 ), // M3
-    DEF_TIM(TIM4,  CH2, PD13,  TIM_USE_MOTOR,               0,  3,  0 ), // M4
-
-    DEF_TIM(TIM8,  CH4, PC9,   TIM_USE_MOTOR,               0,  7,  2 ), // M5
-    DEF_TIM(TIM8,  CH3, PC8,   TIM_USE_MOTOR,               0,  6,  2 ), // M6
-    DEF_TIM(TIM1,  CH3, PE13,  TIM_USE_MOTOR,               0,  5,  1 ), // M7
-    DEF_TIM(TIM1,  CH2, PE11,  TIM_USE_MOTOR,               0,  4,  1 ), // M8
-
-    DEF_TIM(TIM15, CH1, PA2,  TIM_USE_NONE,                 0,  0,  0 ), // Also TX2. Can be used for servo
-    DEF_TIM(TIM15, CH2, PA3,  TIM_USE_NONE,                 0,  0,  0 ), // Also RX2. Can be used for servo
-};
 
 bool brainfpv_settings_updated_from_cms = false;
 

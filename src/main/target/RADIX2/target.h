@@ -142,21 +142,22 @@
 #define SERIAL_PORT_COUNT       7
 
 #define USE_SPI
+#define USE_SPI_DMA_ENABLE_LATE
 
 #define USE_SPI_DEVICE_1
 #define SPI1_SCK_PIN            PA5
-#define SPI1_MISO_PIN           PB4
-#define SPI1_MOSI_PIN           PD7
+#define SPI1_SDI_PIN            PB4
+#define SPI1_SDO_PIN            PD7
 
 #define USE_SPI_DEVICE_2
 #define SPI2_SCK_PIN            PD3
-#define SPI2_MISO_PIN           PC2
-#define SPI2_MOSI_PIN           PC1
+#define SPI2_SDI_PIN            PC2
+#define SPI2_SDO_PIN            PC1
 
 #define USE_SPI_DEVICE_3
 #define SPI3_SCK_PIN            PB3
-#define SPI3_MISO_PIN           PC11
-#define SPI3_MOSI_PIN           PC12
+#define SPI3_SDI_PIN            PC11
+#define SPI3_SDO_PIN            PC12
 #define SPI3_NSS_PIN            PA15
 // Disable DMA for SPI3
 #define SPI3_TX_DMA_OPT         -2
@@ -165,24 +166,29 @@
 #define USE_I2C
 #define USE_I2C_DEVICE_1
 #undef I2C1_OVERCLOCK
-#define I2C1_SCL                PB8
-#define I2C1_SDA                PB7
-#define I2C_DEVICE              (I2CDEV_1)
+#define I2C1_SCL_PIN             PB8
+#define I2C1_SDA_PIN             PB7
+#define I2C_DEVICE               (I2CDEV_1)
 
 #define USE_MAG
 #define MAG_I2C_INSTANCE      I2C_DEVICE
 
 #define USE_FLASHFS
 #define USE_FLASH_M25P16
+#define USE_FLASH_SPI
 #define M25P16_FIRST_SECTOR     32
 #define M25P16_SECTORS_SPARE_END 3
 #define FLASH_CS_PIN           PE14
 #define FLASH_SPI_INSTANCE     SPI1
 #define ENABLE_BLACKBOX_LOGGING_ON_SPIFLASH_BY_DEFAULT
 #define CONFIG_IN_EXTERNAL_FLASH
+#define EEPROM_SIZE 8192
 //#define CONFIG_IN_RAM
 
-#undef USE_GYRO_REGISTER_DUMP
+// Config uses one 64 kB flash sector
+#define FLASH_PAGE_SIZE 0x10000
+
+#define DEFAULT_BLACKBOX_DEVICE BLACKBOX_DEVICE_FLASH
 
 #define USE_EXTI
 #define USE_GYRO
@@ -195,9 +201,7 @@
 #define USE_GYRO_SPI_BMI270
 #define USE_ACCGYRO_BMI270
 #undef USE_GYRO_DLPF_EXPERIMENTAL
-
-// SPI2 is running at 80MHz
-#define BMI270_SPI_DIVISOR   8
+#undef USE_GYRO_REGISTER_DUMP
 
 #define GYRO_1_EXTI_PIN           PE4
 #define GYRO_1_CS_PIN             PE15
@@ -216,24 +220,19 @@
 #define ADC1_INSTANCE ADC1
 #define ADC2_INSTANCE ADC2 // not used
 #define ADC3_INSTANCE ADC3 // ADC3 only for core temp and vrefint
-#define RSSI_ADC_PIN            PC0
-#define VBAT_ADC_PIN            PA6
-#define CURRENT_METER_ADC_PIN   PB0
+#define ADC_RSSI_PIN  PC0
+#define ADC_VBAT_PIN  PA6
+#define ADC_CURR_PIN  PB0
 
 #define BOARD_HAS_VOLTAGE_DIVIDER
 #define ADC_VOLTAGE_REFERENCE_MV 3285
-#define VBAT_SCALE_DEFAULT            176
-#define CURRENT_METER_SCALE_DEFAULT   200
+#define DEFAULT_VOLTAGE_METER_SCALE   176
+#define DEFAULT_CURRENT_METER_SCALE   200
 #define DEFAULT_VOLTAGE_METER_SOURCE VOLTAGE_METER_ADC
 #define DEFAULT_CURRENT_METER_SOURCE CURRENT_METER_ADC
 
-#ifdef USE_DMA_SPEC
 #define ADC1_DMA_OPT 8
 #define ADC3_DMA_OPT 9
-#else
-#define ADC1_DMA_STREAM DMA2_Stream0
-#define ADC3_DMA_STREAM DMA2_Stream1
-#endif
 
 #define DEFAULT_FEATURES        (FEATURE_OSD)
 #define SERIALRX_UART           SERIAL_PORT_USART3
@@ -248,9 +247,39 @@
 #define TARGET_IO_PORTF 0xffff
 #define TARGET_IO_PORTG 0xffff
 
-#define USABLE_TIMER_CHANNEL_COUNT 12
+//#define USABLE_TIMER_CHANNEL_COUNT 12
+//#define USED_TIMERS  ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(8) | TIM_N(12) | TIM_N(14) | TIM_N(15))
 
-#define USED_TIMERS  ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(8) | TIM_N(12) | TIM_N(14) | TIM_N(15))
+// Timers and outputs
+#define USE_TIMER_UP_CONFIG
+
+#define MOTOR1_PIN           PA0   // TIM2 CH1
+#define MOTOR2_PIN           PB5   // TIM3 CH2
+#define MOTOR3_PIN           PD12  // TIM4 CH1
+#define MOTOR4_PIN           PD13  // TIM4 CH2
+#define MOTOR5_PIN           PC9   // TIM8 CH4
+#define MOTOR6_PIN           PC8   // TIM8 CH3
+#define MOTOR7_PIN           PE13  // TIM1 CH3
+#define MOTOR8_PIN           PE11  // TIM1 CH2
+#define SERVO1_PIN           PA2   // TIM15 CH1, Also TX2
+#define SERVO2_PIN           PA3   // TIM15 CH2, Also RX2
+#define RX_PPM_PIN           PB14  // TIM12 CH1
+#define CAMERA_CONTROL_PIN   PA7   // TIM14 CH1
+
+// TIMER_PIN_MAPPING(index, pin, occurence in fullTimerHardware, dma opt)
+#define TIMER_PIN_MAPPING \
+    TIMER_PIN_MAP( 0, PA0,  1,  0) \
+    TIMER_PIN_MAP( 1, PB5,  1,  1) \
+    TIMER_PIN_MAP( 2, PD12, 1,  2) \
+    TIMER_PIN_MAP( 3, PD13, 1,  3) \
+    TIMER_PIN_MAP( 4, PC9,  2,  4) \
+    TIMER_PIN_MAP( 5, PC8,  2,  5) \
+    TIMER_PIN_MAP( 6, PE13, 1,  6) \
+    TIMER_PIN_MAP( 7, PE11, 1,  7) \
+    TIMER_PIN_MAP( 8, PA2,  3, -1) \
+    TIMER_PIN_MAP( 9, PA3,  3, -1) \
+    TIMER_PIN_MAP(10, PB14, 2, -1) \
+    TIMER_PIN_MAP(11, PA7,  4, -1)
 
 //#define USE_BRAINFPV_DEBUG_PRINTF
 #if defined(USE_BRAINFPV_DEBUG_PRINTF)
