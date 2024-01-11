@@ -94,18 +94,19 @@
 #define SERIAL_PORT_COUNT       8
 
 #define USE_SPI
+#define USE_SPI_DMA_ENABLE_LATE
 
 #define USE_SPI_DEVICE_1
-#define SPI1_SCK_PIN            PA5
-#define SPI1_MISO_PIN           PB4
-#define SPI1_MOSI_PIN           PD7
+#define SPI1_SCK_PIN           PA5
+#define SPI1_SDI_PIN           PB4
+#define SPI1_SDO_PIN           PD7
 
 #define USE_I2C
 #define USE_I2C_DEVICE_1
 #undef I2C1_OVERCLOCK
-#define I2C1_SCL                PB6
-#define I2C1_SDA                PB7
-#define I2C_DEVICE              (I2CDEV_1)
+#define I2C1_SCL_PIN           PB6
+#define I2C1_SDA_PIN           PB7
+#define I2C_DEVICE             (I2CDEV_1)
 
 #define USE_MAG
 #define USE_MAG_HMC5883
@@ -114,8 +115,6 @@
 #define USE_MAG_AK8963
 #define USE_MAG_AK8975
 #define MAG_I2C_INSTANCE      I2C_DEVICE
-
-#undef USE_GYRO_REGISTER_DUMP
 
 #define USE_QUADSPI
 #define USE_QUADSPI_DEVICE_1
@@ -136,12 +135,17 @@
 #define QUADSPI1_CS_FLAGS (QUADSPI_BK1_CS_HARDWARE | QUADSPI_BK2_CS_NONE | QUADSPI_CS_MODE_LINKED)
 
 #define USE_FLASH_M25P16
+#define USE_FLASH_QUADSPI
 #define FLASH_QUADSPI_INSTANCE QUADSPI
 #define M25P16_FIRST_SECTOR     64
 #define M25P16_SECTORS_SPARE_END 3
 #define USE_FLASHFS
 #define CONFIG_IN_EXTERNAL_FLASH
+#define EEPROM_SIZE 8192
 //#define CONFIG_IN_RAM
+
+// Config uses one 64 kB flash sector
+#define FLASH_PAGE_SIZE 0x10000
 
 #define USE_SDCARD
 #define USE_SDCARD_SDIO
@@ -156,8 +160,7 @@
 #define SDIO_D2_PIN             PC10
 #define SDIO_D3_PIN             PC11
 
-
-#define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
+#define DEFAULT_BLACKBOX_DEVICE BLACKBOX_DEVICE_SDCARD
 
 #define USE_EXTI
 #define USE_GYRO
@@ -170,8 +173,7 @@
 #define USE_GYRO_SPI_BMI270
 #define USE_ACCGYRO_BMI270
 #undef USE_GYRO_DLPF_EXPERIMENTAL
-
-//#define BMI270_SPI_DIVISOR   8
+#undef USE_GYRO_REGISTER_DUMP
 
 #define GYRO_1_EXTI_PIN           PB3
 #define GYRO_1_CS_PIN             PD3
@@ -188,26 +190,22 @@
 #define ADC1_INSTANCE ADC1
 #define ADC2_INSTANCE ADC2 // not used
 #define ADC3_INSTANCE ADC3 // ADC3 only for core temp and vrefint
-#define RSSI_ADC_PIN            PC1
-#define VBAT_ADC_PIN            PC0
-#define CURRENT_METER_ADC_PIN   PA6
+#define ADC_RSSI_PIN            PC1
+#define ADC_VBAT_PIN            PC0
+#define ADC_CURR_PIN            PA6
 
 #define BOARD_HAS_VOLTAGE_DIVIDER
 #define ADC_VOLTAGE_REFERENCE_MV 3285
-#define VBAT_SCALE_DEFAULT            176
-#define CURRENT_METER_SCALE_DEFAULT   200
+#define DEFAULT_VOLTAGE_METER_SCALE   176
+#define DEFAULT_CURRENT_METER_SCALE   200
 #define DEFAULT_VOLTAGE_METER_SOURCE VOLTAGE_METER_ADC
 #define DEFAULT_CURRENT_METER_SOURCE CURRENT_METER_ADC
 
-#ifdef USE_DMA_SPEC
 #define ADC1_DMA_OPT 8
 #define ADC3_DMA_OPT 9
-#else
-#define ADC1_DMA_STREAM DMA2_Stream0
-#define ADC3_DMA_STREAM DMA2_Stream1
-#endif
 
 #define LIGHT_WS2811_INVERTED
+#define USE_LED_STRIP_CACHE_MGMT
 
 #define DEFAULT_FEATURES        (FEATURE_OSD)
 #define SERIALRX_UART           SERIAL_PORT_USART3
@@ -222,9 +220,34 @@
 #define TARGET_IO_PORTF 0xffff
 #define TARGET_IO_PORTG 0xffff
 
-#define USABLE_TIMER_CHANNEL_COUNT 11
+// Timers and outputs
+#define USE_TIMER_UP_CONFIG
 
-#define USED_TIMERS  ( TIM_N(1) | TIM_N(2) | TIM_N(3) | TIM_N(4) | TIM_N(5) | TIM_N(8) | TIM_N(14) | TIM_N(15) )
+#define MOTOR1_PIN           PE11  // TIM1 CH2
+#define MOTOR2_PIN           PE13  // TIM1 CH3
+#define MOTOR3_PIN           PA15  // TIM2 CH1
+#define MOTOR4_PIN           PA2   // TIM2 CH3
+#define MOTOR5_PIN           PB5   // TIM3 CH2
+#define MOTOR6_PIN           PB0   // TIM3 CH3
+#define MOTOR7_PIN           PD13  // TIM4 CH2
+#define MOTOR8_PIN           PD14  // TIM4 CH3
+#define SERVO1_PIN           PC6   // TIM8 CH1, Also TX6
+#define SERVO2_PIN           PC7   // TIM8 CH2, Also RX6
+#define LED_STRIP_PIN        PA3   // TIM5 CH4
+
+// TIMER_PIN_MAPPING(index, pin, occurence in fullTimerHardware, dma opt)
+#define TIMER_PIN_MAPPING \
+    TIMER_PIN_MAP( 0, PE11, 1,  0) \
+    TIMER_PIN_MAP( 1, PE13, 1,  1) \
+    TIMER_PIN_MAP( 2, PA15, 1,  2) \
+    TIMER_PIN_MAP( 3, PA2,  1,  3) \
+    TIMER_PIN_MAP( 4, PB5,  1,  4) \
+    TIMER_PIN_MAP( 5, PB0,  2,  5) \
+    TIMER_PIN_MAP( 6, PD13, 1,  6) \
+    TIMER_PIN_MAP( 7, PD14, 1,  7) \
+    TIMER_PIN_MAP( 8, PC6,  2, -1) \
+    TIMER_PIN_MAP( 9, PC7,  2, -1) \
+    TIMER_PIN_MAP(10, PA3,  2, 15)
 
 #undef USE_DSHOT_BITBANG
 #undef USE_BRUSHED_ESC_AUTODETECT
