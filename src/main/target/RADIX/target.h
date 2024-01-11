@@ -22,11 +22,13 @@
 #define TARGET_BOARD_IDENTIFIER "RADIX"
 
 // Uses a 16 MHz oscillator
-#define SYSTEM_HSE_VALUE 16
+#define SYSTEM_HSE_MHZ 16
 
 #define CONFIG_START_FLASH_ADDRESS (0x08004000) // 2nd 16kB sector
 
 #define USBD_PRODUCT_STRING     "BrainFPV RADIX"
+
+#define FLASH_PAGE_SIZE          ((uint32_t)0x4000) // 16K sectors
 
 //#define BRAINFPV_DEBUG_PIN      PB6
 
@@ -111,7 +113,7 @@
 #define GYRO_1_CS_PIN             PB4
 #define GYRO_1_SPI_INSTANCE       SPI3
 #define GYRO_1_ALIGN              CW0_DEG
-#define GYRO_1_ALIGN               CW0_DEG
+#define GYRO_1_ALIGN              CW0_DEG
 
 #define USE_BARO
 #define USE_BARO_SPI_BMP280
@@ -120,8 +122,6 @@
 #define BMP280_SPI_DIVISOR   16
 #define BARO_SPI_INSTANCE    SPI3
 #define BARO_CS_PIN          PB8
-
-#define USABLE_TIMER_CHANNEL_COUNT 8
 
 #define USE_VCP
 #define VBUS_SENSING_PIN        PA9
@@ -150,32 +150,33 @@
 #define SERIAL_PORT_COUNT       5 //VCP, USART1,  USART3, USART4, USART6
 
 #define USE_SPI
+#define USE_SPI_DMA_ENABLE_LATE
 
 #define USE_SPI_DEVICE_1
 #define SPI1_SCK_PIN            PA5
-#define SPI1_MISO_PIN           PA6
-#define SPI1_MOSI_PIN           PA7
+#define SPI1_SDI_PIN            PA6
+#define SPI1_SDO_PIN            PA7
 #define SPI1_RX_DMA_OPT         1    // DMA 2 Stream 2 Channel 3
 #define SPI1_TX_DMA_OPT         1    // DMA 2 Stream 5 Channel 3
 
 #define USE_SPI_DEVICE_3
 #define SPI3_SCK_PIN            PB3
-#define SPI3_MISO_PIN           PC11
-#define SPI3_MOSI_PIN           PC12
+#define SPI3_SDI_PIN            PC11
+#define SPI3_SDO_PIN            PC12
 
 #define BOARD_HAS_VOLTAGE_DIVIDER
 #define USE_ADC
 #define ADC1_DMA_OPT 0 // DMA2 Stream 0
 #define ADC_VOLTAGE_REFERENCE_MV 3245
-#define VBAT_ADC_PIN            PC1
-#define RSSI_ADC_PIN            PC3
-#define CURRENT_METER_ADC_PIN   PC0
-#define VBAT_SCALE_DEFAULT            120
-#define CURRENT_METER_SCALE_DEFAULT   200
+#define ADC_VBAT_PIN   PC1
+#define ADC_RSSI_PIN   PC3
+#define ADC_CURR_PIN   PC0
+#define DEFAULT_VOLTAGE_METER_SCALE  120
+#define DEFAULT_CURRENT_METER_SCALE  200
 #define DEFAULT_VOLTAGE_METER_SOURCE VOLTAGE_METER_ADC
 #define DEFAULT_CURRENT_METER_SOURCE CURRENT_METER_ADC
 
-#define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
+#define DEFAULT_BLACKBOX_DEVICE BLACKBOX_DEVICE_SDCARD
 #define USE_SDCARD
 #define USE_SDCARD_SPI
 #define SDCARD_SPI_INSTANCE                 SPI1
@@ -199,7 +200,26 @@
 
 #define USE_DSHOT
 #define USE_DSHOT_BITBAND
-#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(5) | TIM_N(8) | TIM_N(12) )
+//#define USED_TIMERS             ( TIM_N(1) | TIM_N(2) | TIM_N(5) | TIM_N(8) | TIM_N(12) )
+
+#define MOTOR1_PIN           PA2   // TIM5 CH3
+#define MOTOR2_PIN           PA3   // TIM5 CH4
+#define MOTOR3_PIN           PA10  // TIM1 CH3
+#define MOTOR4_PIN           PA15  // TIM2 CH1
+#define MOTOR5_PIN           PC8   // TIM8 CH3
+#define MOTOR6_PIN           PB0   // TIM8 CH2N
+#define RX_PPM_PIN           PB14  // TIM12 CH1
+#define CAMERA_CONTROL_PIN   PB9   // TIM11 CH1
+
+#define TIMER_PIN_MAPPING \
+    TIMER_PIN_MAP( 0, PA2,  2,  0) \
+    TIMER_PIN_MAP( 1, PA3,  2,  0) \
+    TIMER_PIN_MAP( 2, PA10, 1,  0) \
+    TIMER_PIN_MAP( 3, PA15, 1,  0) \
+    TIMER_PIN_MAP( 4, PC8,  2,  0) \
+    TIMER_PIN_MAP( 5, PB0,  3,  0) \
+    TIMER_PIN_MAP( 6, PB14, 3,  0) \
+    TIMER_PIN_MAP( 7, PB9,  2,  0)
 
 #undef USE_USB_MSC
 
