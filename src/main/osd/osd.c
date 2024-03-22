@@ -446,7 +446,7 @@ void pgResetFn_osdConfig(osdConfig_t *osdConfig)
 void pgResetFn_osdElementConfig(osdElementConfig_t *osdElementConfig)
 {
 // If user includes OSD_HD in the build assume they want to use it as default
-#ifdef USE_OSD_HD
+#if defined(USE_OSD_HD) && !defined(USE_BRAINFPV_OSD)
     uint8_t midRow = 10;
     uint8_t midCol = 26;
 #else
