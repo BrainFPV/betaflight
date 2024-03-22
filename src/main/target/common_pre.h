@@ -204,7 +204,7 @@
 #define USE_OSD_HD
 #define USE_BLACKBOX
 
-#if TARGET_FLASH_SIZE > 512
+#if TARGET_FLASH_SIZE >= 1024
 
 #if defined(USE_SERIALRX)
 
@@ -284,11 +284,6 @@
 
 #if defined(USE_LED_STRIP)
 #define USE_LED_STRIP_STATUS_MODE
-#endif
-
-#if defined(USE_PINIO)
-#define USE_PINIOBOX
-#define USE_PIN_PULL_UP_DOWN
 #endif
 
 #if defined(USE_VTX)

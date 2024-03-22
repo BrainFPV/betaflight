@@ -2178,8 +2178,8 @@ static void cliServo(const char *cmdName, char *cmdline)
         servo = servoParamsMutable(i);
 
         if (
-            arguments[MIN] < PWM_PULSE_MIN || arguments[MIN] > PWM_PULSE_MAX ||
-            arguments[MAX] < PWM_PULSE_MIN || arguments[MAX] > PWM_PULSE_MAX ||
+            arguments[MIN] < PWM_SERVO_MIN || arguments[MIN] > PWM_SERVO_MAX ||
+            arguments[MAX] < PWM_SERVO_MIN || arguments[MAX] > PWM_SERVO_MAX ||
             arguments[MIDDLE] < arguments[MIN] || arguments[MIDDLE] > arguments[MAX] ||
             arguments[MIN] > arguments[MAX] ||
             arguments[RATE] < -100 || arguments[RATE] > 100 ||
@@ -4820,12 +4820,7 @@ if (buildKey) {
                 cliPrint("configured");
             }
         }
-        if (gpsData.platformVersion != UBX_VERSION_UNDEF) {
-            cliPrint(", version = ");
-            cliPrintf("%s", ubloxVersionMap[gpsData.platformVersion].str);
-        } else {
-            cliPrint("unknown");
-        }
+        cliPrintf(", version =  %s", gpsData.platformVersion != UBX_VERSION_UNDEF ? ubloxVersionMap[gpsData.platformVersion].str : "unknown");
     } else {
         cliPrint("NOT ENABLED");
     }

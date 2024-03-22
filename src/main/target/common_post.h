@@ -220,6 +220,7 @@
 #undef USE_TELEMETRY_MAVLINK
 #undef USE_TELEMETRY_SMARTPORT
 #undef USE_TELEMETRY_SRXL
+#endif
 
 #ifdef USE_SERIALRX_FPORT
 #ifndef USE_TELEMETRY
@@ -227,7 +228,6 @@
 #endif
 #ifndef USE_TELEMETRY_SMARTPORT
 #define USE_TELEMETRY_SMARTPORT
-#endif
 #endif
 #endif
 
@@ -416,7 +416,9 @@
 #endif
 #endif
 
-#if defined(USE_GYRO_SPI_ICM20689) || defined(USE_GYRO_SPI_MPU6000) || defined(USE_GYRO_SPI_MPU6500) || defined(USE_GYRO_SPI_MPU9250) || defined(USE_GYRO_L3GD20) || defined(USE_GYRO_SPI_ICM42605) || defined(USE_GYRO_SPI_ICM42688P) || defined(USE_ACCGYRO_BMI160) || defined(USE_ACCGYRO_BMI270)
+#if defined(USE_GYRO_SPI_ICM20689) || defined(USE_GYRO_SPI_MPU6000) || defined(USE_GYRO_SPI_MPU6500) || defined(USE_GYRO_SPI_MPU9250) \
+    || defined(USE_GYRO_L3GD20) || defined(USE_GYRO_SPI_ICM42605) || defined(USE_GYRO_SPI_ICM42688P) || defined(USE_ACCGYRO_BMI160) \
+    || defined(USE_ACCGYRO_BMI270) || defined(USE_ACCGYRO_LSM6DSV16X) || defined(USE_ACCGYRO_LSM6DSO)
 #ifndef USE_SPI_GYRO
 #define USE_SPI_GYRO
 #endif
@@ -621,3 +623,17 @@ extern uint8_t __config_end;
 #ifdef USE_GPS_LAP_TIMER
 #define USE_CMS_GPS_LAP_TIMER_MENU
 #endif
+
+// Enable PINIO by default if any PIN is defined
+#if !defined(USE_PINIO) && (defined(PINIO1_BOX) || defined(PINIO2_BOX) || defined(PINIO3_BOX) || defined(PINIO4_BOX))
+#define USE_PINIO
+#endif
+
+#ifdef USE_PINIO
+#ifndef USE_PINIOBOX
+#define USE_PINIOBOX
+#endif
+#ifndef USE_PIN_PULL_UP_DOWN
+#define USE_PIN_PULL_UP_DOWN
+#endif
+#endif // USE_PINIO
