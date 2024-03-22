@@ -154,6 +154,7 @@
 #define SDCARD_DETECT_INVERTED
 #define SDIO_DEVICE             SDIODEV_1
 #define SDIO_USE_4BIT           true
+#define SDIO_USE_PULLUP
 #define SDIO_CK_PIN             PC12
 #define SDIO_CMD_PIN            PD2
 #define SDIO_D0_PIN             PC8
