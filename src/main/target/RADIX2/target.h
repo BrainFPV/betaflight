@@ -164,6 +164,7 @@
 #define SPI3_RX_DMA_OPT         -2
 
 #define USE_I2C
+#define I2C_FULL_RECONFIGURABILITY
 #define USE_I2C_DEVICE_1
 #undef I2C1_OVERCLOCK
 #define I2C1_SCL_PIN             PB8
