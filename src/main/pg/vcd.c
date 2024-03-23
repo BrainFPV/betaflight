@@ -33,7 +33,7 @@ PG_REGISTER_WITH_RESET_FN(vcdProfile_t, vcdProfile, PG_VCD_CONFIG, 0);
 void pgResetFn_vcdProfile(vcdProfile_t *vcdProfile)
 {
     // Make it obvious on the configurator that the FC doesn't support HD
-#ifdef USE_OSD_HD
+#if defined(USE_OSD_HD) && !defined(USE_BRAINFPV_OSD)
     vcdProfile->video_system = VIDEO_SYSTEM_HD;
 #else
     vcdProfile->video_system = VIDEO_SYSTEM_AUTO;
