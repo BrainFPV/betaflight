@@ -1162,7 +1162,7 @@ static void osdElementGpsSats(osdElementParms_t *element)
         tfp_sprintf(element->buff, "%c%cNC", SYM_SAT_L, SYM_SAT_R);
     } else {
         int pos = tfp_sprintf(element->buff, "%c%c%2d", SYM_SAT_L, SYM_SAT_R, gpsSol.numSat);
-        if (osdConfig()->gps_sats_show_hdop) { // add on the GPS module HDOP estimate
+        if (osdConfig()->gps_sats_show_pdop) { // add on the GPS module PDOP estimate
             element->buff[pos++] = ' ';
             osdPrintFloat(element->buff + pos, SYM_NONE, gpsSol.dop.pdop / 100.0f, "", 1, true, SYM_NONE);
         }
@@ -2363,7 +2363,7 @@ bool osdDrawNextActiveElement(displayPort_t *osdDisplayPort, timeUs_t currentTim
 #ifdef USE_SPEC_PREARM_SCREEN
 bool osdDrawSpec(displayPort_t *osdDisplayPort)
 {
-    static enum {CLR, RPM, POLES, MIXER, THR, MOTOR, BAT, VER} specState = CLR;
+    static enum {RPM, POLES, MIXER, THR, MOTOR, BAT, VER} specState = RPM;
     static int currentRow;
 
     const uint8_t midRow = osdDisplayPort->rows / 2;
@@ -2375,14 +2375,8 @@ bool osdDrawSpec(displayPort_t *osdDisplayPort)
 
     switch (specState) {
     default:
-    case CLR:
-        displayClearScreen(osdDisplayPort, DISPLAY_CLEAR_NONE);
-        currentRow = midRow - 3;
-
-        specState = RPM;
-        break;
-
     case RPM:
+        currentRow = midRow - 3;
 #ifdef USE_RPM_LIMIT
         {
             const bool rpmLimitActive = mixerConfig()->rpm_limit > 0 && isMotorProtocolBidirDshot();
@@ -2447,7 +2441,7 @@ bool osdDrawSpec(displayPort_t *osdDisplayPort)
         len = strlen(FC_VERSION_STRING);
         displayWrite(osdDisplayPort, midCol - (len / 2), currentRow++, DISPLAYPORT_SEVERITY_NORMAL, FC_VERSION_STRING);
 
-        specState = CLR;
+        specState = RPM;
 
         return true;
     }

@@ -395,7 +395,7 @@ void pgResetFn_osdConfig(osdConfig_t *osdConfig)
     }
     osdConfig->rssi_dbm_alarm = -60;
     osdConfig->rsnr_alarm = 4;
-    osdConfig->gps_sats_show_hdop = false;
+    osdConfig->gps_sats_show_pdop = false;
 
     for (int i = 0; i < OSD_RCCHANNELS_COUNT; i++) {
         osdConfig->rcChannels[i] = -1;
@@ -1508,29 +1508,8 @@ void osdUpdate(timeUs_t currentTimeUs)
         if (resumeRefreshAt) {
             osdState = OSD_STATE_TRANSFER;
         } else {
-#ifdef USE_SPEC_PREARM_SCREEN
-            osdState = OSD_STATE_REFRESH_PREARM;
-#else
             osdState = OSD_STATE_UPDATE_CANVAS;
-#endif
         }
-        break;
-
-    case OSD_STATE_REFRESH_PREARM:
-        {
-#ifdef USE_SPEC_PREARM_SCREEN
-            if (!ARMING_FLAG(ARMED) && osdConfig()->osd_show_spec_prearm) {
-                if (osdDrawSpec(osdDisplayPort)) {
-                        // Rendering is complete
-                        osdState = OSD_STATE_COMMIT;
-                }
-            } else
-#endif // USE_SPEC_PREARM_SCREEN
-            {
-                osdState = OSD_STATE_UPDATE_CANVAS;
-            }
-        }
-
         break;
 
     case OSD_STATE_UPDATE_CANVAS:
@@ -1601,9 +1580,26 @@ void osdUpdate(timeUs_t currentTimeUs)
                 break;
             }
 
-            osdState = OSD_STATE_COMMIT;
+#ifdef USE_SPEC_PREARM_SCREEN
+            if (!ARMING_FLAG(ARMED) && osdConfig()->osd_show_spec_prearm) {
+                osdState = OSD_STATE_REFRESH_PREARM;
+            } else
+#endif // USE_SPEC_PREARM_SCREEN
+            {
+                osdState = OSD_STATE_COMMIT;
+            }
         }
         break;
+
+#ifdef USE_SPEC_PREARM_SCREEN
+    case OSD_STATE_REFRESH_PREARM:
+        if (osdDrawSpec(osdDisplayPort)) {
+            // Rendering is complete
+            osdState = OSD_STATE_COMMIT;
+        }
+
+        break;
+#endif // USE_SPEC_PREARM_SCREEN
 
     case OSD_STATE_COMMIT:
         displayCommitTransaction(osdDisplayPort);
