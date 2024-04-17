@@ -110,7 +110,7 @@ static bool qmc5883lRead(magDev_t *magDev, int16_t *magData)
         case STATE_WAIT_DRDY:
             if (status & QMC5883L_REG_STATUS_DRDY) {
                 // New data is available
-               if (busReadRegisterBufferStart(dev, QMC5883L_REG_DATA_OUTPUT_X, buf, sizeof(buf))) {
+                if (busReadRegisterBufferStart(dev, QMC5883L_REG_DATA_OUTPUT_X, buf, sizeof(buf))) {
                     state = STATE_READ;
                 }
             } else if (status & QMC5883L_REG_STATUS_DOR) {
