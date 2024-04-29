@@ -1245,7 +1245,7 @@ static bool mspProcessOutCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, sbuf_t
             bool rpmDataAvailable = false;
 
 #ifdef USE_DSHOT_TELEMETRY
-            if (motorConfig()->dev.useDshotTelemetry) {
+            if (useDshotTelemetry) {
                 rpm = lrintf(getDshotRpm(i));
                 rpmDataAvailable = true;
                 invalidPct = 10000; // 100.00%
@@ -1475,7 +1475,7 @@ static bool mspProcessOutCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, sbuf_t
         sbufWriteU8(dst, getMotorCount());
         sbufWriteU8(dst, motorConfig()->motorPoleCount);
 #ifdef USE_DSHOT_TELEMETRY
-        sbufWriteU8(dst, motorConfig()->dev.useDshotTelemetry);
+        sbufWriteU8(dst, useDshotTelemetry);
 #else
         sbufWriteU8(dst, 0);
 #endif
@@ -1506,7 +1506,7 @@ static bool mspProcessOutCommand(mspDescriptor_t srcDesc, int16_t cmdMSP, sbuf_t
         } else
 #endif
 #if defined(USE_DSHOT_TELEMETRY)
-        if (motorConfig()->dev.useDshotTelemetry) {
+        if (useDshotTelemetry) {
             sbufWriteU8(dst, getMotorCount());
             for (int i = 0; i < getMotorCount(); i++) {
                 sbufWriteU8(dst, dshotTelemetryState.motorState[i].telemetryData[DSHOT_TELEMETRY_TYPE_TEMPERATURE]);
