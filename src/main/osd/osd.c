@@ -1680,14 +1680,14 @@ void osdUpdate(timeUs_t currentTimeUs)
 #if defined(USE_BRAINFPV_OSD)
 bool brainFPVOsdUpdate(timeUs_t currentTimeUs)
 {
-    bool moreElements = true;
+    bool moreElementsToDraw = true;
     static bool osdDismissStats = false;
 
     if (osdState == OSD_STATE_INIT) {
         // Initialize on first run
         displayCheckReady(osdDisplayPort, false);
         osdCompleteInitialization();
-        osdState = OSD_STATE_UPDATE_ELEMENTS;
+        osdState = OSD_STATE_DRAW_ELEMENT;
     }
 
     if (isBeeperOn()) {
@@ -1703,7 +1703,7 @@ bool brainFPVOsdUpdate(timeUs_t currentTimeUs)
     osdProcessStats3();
 
     showVisualBeeper = false;
-    osdSyncBlink();
+    osdSyncBlink(currentTimeUs);
 
     if (osdStatsVisible && !osdDismissStats) {
         osdRenderStatsBegin();
@@ -1731,8 +1731,13 @@ bool brainFPVOsdUpdate(timeUs_t currentTimeUs)
     }
 
     do {
-        moreElements = osdDrawNextActiveElement(osdDisplayPort, currentTimeUs);
-    } while (moreElements);
+        moreElementsToDraw = osdDrawNextActiveElement(osdDisplayPort);
+
+        if (osdIsRenderPending()) {
+            while (osdDisplayActiveElement());
+        }
+
+    } while (moreElementsToDraw);
 
     return true;
 }
