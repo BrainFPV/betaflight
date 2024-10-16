@@ -480,6 +480,7 @@ FAST_CODE void scheduler(void)
     static uint64_t gyroCyclesTotal = 0;
     static float devSquared = 0.0f;
 #endif
+
 #if !defined(UNIT_TEST)
     const timeUs_t schedulerStartTimeUs = micros();
 #endif
@@ -490,6 +491,7 @@ FAST_CODE void scheduler(void)
     uint16_t selectedTaskDynamicPriority = 0;
     uint32_t nextTargetCycles = 0;
     int32_t schedLoopRemainingCycles;
+    bool firstSchedulingOpportunity = false;
 
 #if defined(USE_CHIBIOS)
     static bool runGyroNow = false;
@@ -570,6 +572,9 @@ FAST_CODE void scheduler(void)
                 failsafeUpdateState();
                 lastFailsafeCheckMs = millis();
             }
+
+            // This is the first scheduling opportunity after the realtime tasks have run
+            firstSchedulingOpportunity = true;
 
 #if defined(USE_LATE_TASK_STATISTICS)
             gyroCyclesNow = cmpTimeCycles(nowCycles, lastTargetCycles);
@@ -765,7 +770,7 @@ FAST_CODE void scheduler(void)
             // Allow a little extra time
             taskRequiredTimeCycles += taskGuardCycles;
 
-            if (!gyroEnabled || (taskRequiredTimeCycles < schedLoopRemainingCycles)) {
+            if (!gyroEnabled || firstSchedulingOpportunity || (taskRequiredTimeCycles < schedLoopRemainingCycles)) {
                 uint32_t antipatedEndCycles = nowCycles + taskRequiredTimeCycles;
                 taskExecutionTimeUs += schedulerExecuteTask(selectedTask, currentTimeUs);
                 nowCycles = getCycleCounter();

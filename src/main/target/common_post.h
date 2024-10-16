@@ -232,8 +232,20 @@
 #endif
 
 #if defined(USE_TELEMETRY_IBUS_EXTENDED) && !defined(USE_TELEMETRY_IBUS)
+#ifndef USE_TELEMETRY
+#define USE_TELEMETRY
+#endif
 #define USE_TELEMETRY_IBUS
 #endif
+
+#ifdef USE_SERIALRX_JETIEXBUS
+#ifndef USE_TELEMETRY
+#define USE_TELEMETRY
+#endif
+#ifndef USE_TELEMETRY_JETIEXBUS
+#define USE_TELEMETRY_JETIEXBUS
+#endif
+#endif // USE_SERIALRX_JETIEXBUS
 
 #if !defined(USE_SERIALRX_CRSF)
 #undef USE_TELEMETRY_CRSF
@@ -265,8 +277,8 @@
 #undef USE_TELEMETRY_IBUS_EXTENDED
 #endif
 
-// If USE_SERIALRX_SPEKTRUM was dropped by a target, drop all related options
-#ifndef USE_SERIALRX_SPEKTRUM
+// If USE_SERIALRX_SPEKTRUM or SERIALRX_SRXL2 was dropped by a target, drop all related options
+#if !defined(USE_SERIALRX_SPEKTRUM) && !defined(USE_SERIALRX_SRXL2)
 #undef USE_SPEKTRUM_BIND
 #undef USE_SPEKTRUM_BIND_PLUG
 #undef USE_SPEKTRUM_REAL_RSSI
@@ -275,7 +287,7 @@
 #undef USE_SPEKTRUM_VTX_CONTROL
 #undef USE_SPEKTRUM_VTX_TELEMETRY
 #undef USE_TELEMETRY_SRXL
-#endif
+#endif // !defined(USE_SERIALRX_SPEKTRUM) && !defined(USE_SERIALRX_SRXL2)
 
 #if !defined(USE_CMS) || !defined(USE_TELEMETRY_SRXL)
 #undef USE_SPEKTRUM_CMS_TELEMETRY
