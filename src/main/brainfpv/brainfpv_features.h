@@ -59,6 +59,8 @@
 #define USE_ACRO_TRAINER
 
 #if TARGET_FLASH_SIZE > 512
+#define USE_ESCSERIAL
+
 #define USE_SERIALRX_JETIEXBUS
 #define USE_SERIALRX_SUMD       // Graupner Hott protocol
 #define USE_SERIALRX_SUMH       // Graupner legacy protocol
