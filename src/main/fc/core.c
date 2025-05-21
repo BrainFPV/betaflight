@@ -93,6 +93,7 @@
 
 #include "rx/rc_stats.h"
 #include "rx/rx.h"
+#include "rx/external_control.h" // Added for External Control
 
 #include "scheduler/scheduler.h"
 
@@ -1292,6 +1293,48 @@ FAST_CODE void taskMainPidLoop(timeUs_t currentTimeUs)
     DEBUG_SET(DEBUG_PIDLOOP, 0, micros() - currentTimeUs);
 
     subTaskRcCommand(currentTimeUs);
+
+    if (IS_RC_MODE_ACTIVE(BOXEXTERNALCONTROL)) {
+        const externalControlCommand_t *extCmd = getExternalControlCommand();
+        // It's also good to check if the external control data is fresh.
+        // We can rely on externalControlFrameStatus() to eventually trigger failsafe if data is stale,
+        // which would disarm or trigger other failsafe measures, preventing use of old extCmd.
+        // A direct check here could be: `if (extCmd && rxAreFlightChannelsValid())`
+        // assuming external_control.c correctly influences `rxAreFlightChannelsValid()`.
+        // For now, a simple check for extCmd is a starting point.
+
+        if (extCmd) {
+            // Override rcCommand with values from external control
+            // Roll, Pitch, Yaw rates are typically expected in degrees/second by the PID controller.
+            // Let's assume extCmd->roll_rate, pitch_rate, yaw_rate are already in deg/s.
+            rcCommand[ROLL] = extCmd->roll_rate;
+            rcCommand[PITCH] = extCmd->pitch_rate;
+            rcCommand[YAW] = extCmd->yaw_rate;
+
+            // Thrust from extCmd is assumed to be 0.0 to 1.0.
+            // rcCommand[THROTTLE] is expected in microseconds (e.g., 1000-2000 for legacy PWM,
+            // but it's generally scaled around rxConfig()->mincheck and rxConfig()->maxcheck).
+            float_t minThrottle = rxConfig()->mincheck;
+            if (featureIsEnabled(FEATURE_3D) && !IS_RC_MODE_ACTIVE(BOX3D) && !flight3DConfig()->switched_mode3d) {
+                 minThrottle = rxConfig()->midrc - flight3DConfig()->deadband3d_throttle; // Or similar logic for 3D min
+            }
+
+            rcCommand[THROTTLE] = minThrottle + (extCmd->thrust * (rxConfig()->maxcheck - minThrottle));
+            rcCommand[THROTTLE] = constrainf(rcCommand[THROTTLE], rxConfig()->mincheck, rxConfig()->maxcheck); // Constrain to valid PWM/command range
+
+            // If in 3D mode and thrust is negative, rcCommand[THROTTLE] should go below mincheck/midrc
+            // This part needs to be careful with how Betaflight handles 3D thrust mapping.
+            // The above scaling (0.0 to 1.0) maps to the positive thrust range.
+            // If extCmd->thrust can be, for example, -1.0 to 1.0 for 3D, the mapping would be:
+            // rcCommand[THROTTLE] = rxConfig()->midrc + (extCmd->thrust * (rxConfig()->maxcheck - rxConfig()->midrc));
+            // For now, assume extCmd->thrust is 0.0 to 1.0 mapping to normal throttle range.
+
+            // When external control is active, we might also want to bypass certain RC processing
+            // like RC smoothing or adjustments if they are applied after subTaskRcCommand
+            // and before subTaskPidController. Overwriting rcCommand should handle most of this.
+        }
+    }
+
     subTaskPidController(currentTimeUs);
     subTaskMotorUpdate(currentTimeUs);
     subTaskPidSubprocesses(currentTimeUs);

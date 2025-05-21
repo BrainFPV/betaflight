@@ -71,7 +71,10 @@
 #include "rx/rx_spi.h"
 #include "rx/targetcustomserial.h"
 #include "rx/msp_override.h"
+#include "rx/external_control.h" // Added for External Control
 
+// Define for enabling External Control protocol
+#define USE_SERIALRX_EXTERNAL_CONTROL
 
 const char rcChannelLetters[] = "AERT12345678abcdefgh";
 
@@ -265,6 +268,11 @@ static bool serialRxInit(const rxConfig_t *rxConfig, rxRuntimeState_t *rxRuntime
 #ifdef USE_SERIALRX_FPORT
     case SERIALRX_FPORT:
         enabled = fportRxInit(rxConfig, rxRuntimeState);
+        break;
+#endif
+#ifdef USE_SERIALRX_EXTERNAL_CONTROL
+    case SERIALRX_EXTERNAL_CONTROL:
+        enabled = externalControlInit(rxConfig, rxRuntimeState);
         break;
 #endif
     default:
